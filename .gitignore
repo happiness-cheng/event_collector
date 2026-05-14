@@ -1,0 +1,14 @@
+build/
+build2/
+venv/
+__pycache__/
+*.pyc
+*.log
+temp/
+*.o
+*.a
+CLAUDE.md
+.vscode/
+*.code-workspace
+event_pb2.py
+event_pb2_grpc.py

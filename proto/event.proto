@@ -1,0 +1,10 @@
+syntax = "proto3";
+package event;
+message Event {
+  string event_id   = 1;
+  string user_id    = 2;
+  string platform   = 3;
+  string event_type = 4;
+  int64  ts         = 5;
+  bytes  payload    = 6;
+}
