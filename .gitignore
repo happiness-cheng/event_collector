@@ -10,5 +10,3 @@ temp/
 CLAUDE.md
 .vscode/
 *.code-workspace
-event_pb2.py
-event_pb2_grpc.py
