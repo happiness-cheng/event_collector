@@ -14,7 +14,7 @@ public:
     void flush_and_stop();
 
 private:
-    void flush();
+    void do_flush(std::vector<std::string>& batch);
     void write_dead_letter(const std::vector<std::string>& batch);
 
     std::unique_ptr<clickhouse::Client> client_;

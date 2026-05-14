@@ -75,8 +75,27 @@ void Processor::start(size_t thread_count) {
 void Processor::stop() {
     running_ = false;
     for (auto& t : threads_) if (t.joinable()) t.join();
+
+    // Drain remaining items from queue
+    std::string data;
+    while (queue_.try_pop(data)) {
+        metrics_.total_received.fetch_add(1);
+        event::Event evt;
+        if (evt.ParseFromString(data)) {
+            metrics_.total_parsed.fetch_add(1);
+            if (validate(evt)) {
+                metrics_.total_valid.fetch_add(1);
+                if (storage_) storage_->save(data);
+            } else {
+                metrics_.total_invalid.fetch_add(1);
+            }
+        } else {
+            metrics_.total_parse_fail.fetch_add(1);
+        }
+    }
+
     if (storage_) storage_->flush_and_stop();
-    spdlog::info("Processor stopped. Final stats: received={} parsed={} valid={} invalid={} rate_limited={}",
+    spdlog::info("Processor stopped. Final: received={} parsed={} valid={} invalid={} rate_limited={}",
         metrics_.total_received.load(), metrics_.total_parsed.load(),
         metrics_.total_valid.load(), metrics_.total_invalid.load(),
         metrics_.total_rate_limited.load());

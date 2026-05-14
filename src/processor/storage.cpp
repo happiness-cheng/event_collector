@@ -17,26 +17,29 @@ Storage::~Storage() {
 }
 
 bool Storage::save(const std::string& serialized_data) {
-    std::lock_guard<std::mutex> lock(buffer_mutex_);
-    buffer_.push_back(serialized_data);
-    if (buffer_.size() >= BATCH_SIZE) {
-        flush();
+    std::vector<std::string> batch;
+    {
+        std::lock_guard<std::mutex> lock(buffer_mutex_);
+        buffer_.push_back(serialized_data);
+        if (buffer_.size() < BATCH_SIZE) return true;
+        batch.swap(buffer_);
     }
+    do_flush(batch);
     return true;
 }
 
 void Storage::flush_and_stop() {
-    std::lock_guard<std::mutex> lock(buffer_mutex_);
-    if (!buffer_.empty()) {
-        flush();
+    std::vector<std::string> batch;
+    {
+        std::lock_guard<std::mutex> lock(buffer_mutex_);
+        if (buffer_.empty()) return;
+        batch.swap(buffer_);
     }
+    do_flush(batch);
 }
 
-void Storage::flush() {
-    if (buffer_.empty()) return;
-
-    auto batch = std::move(buffer_);
-    buffer_.clear();
+void Storage::do_flush(std::vector<std::string>& batch) {
+    if (batch.empty()) return;
 
     clickhouse::Block block;
     auto col = std::make_shared<clickhouse::ColumnString>();
