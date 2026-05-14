@@ -57,10 +57,14 @@ make -j$(nproc)
 ## 测试
 
 ```bash
-# 发送测试事件
-python3 bench_client.py --count 100 --threads 2
+# 集成测试：启动服务 → 发送事件 → 验证 Prometheus 指标 → 优雅退出
+./test_integration.sh
 
-# 查看 Prometheus 指标
+# 编译并运行队列单元测试
+g++ -std=c++17 -pthread -Iinclude -o tests/test_queue tests/test_queue.cpp && ./tests/test_queue
+
+# 手动测试
+python3 bench_client.py --count 100 --threads 2
 curl http://localhost:9090
 ```
 
@@ -82,6 +86,8 @@ Length-Prefix Protocol：4 字节小端序头部（payload 长度）+ protobuf �
 │   ├── collector/             # TCP 接收模块
 │   ├── processor/             # 事件处理 + 限流 + 存储
 │   └── monitor/               # Prometheus 指标
+├── tests/test_queue.cpp       # 队列单元测试
+├── test_integration.sh        # 集成测试脚本
 ├── bench_client.py            # Python 压测工具
 ├── start.sh                   # Linux 启动脚本
 └── start.bat                  # Windows 启动脚本
