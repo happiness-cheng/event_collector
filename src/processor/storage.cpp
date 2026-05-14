@@ -3,6 +3,8 @@
 #include <spdlog/spdlog.h>
 #include <fstream>
 #include <chrono>
+#include <sys/stat.h>
+#include <ctime>
 
 Storage::Storage(Metrics& m) : metrics_(m) {
     clickhouse::ClientOptions opts;
@@ -61,7 +63,15 @@ void Storage::do_flush(std::vector<std::string>& batch) {
 }
 
 void Storage::write_dead_letter(const std::vector<std::string>& batch) {
-    std::ofstream f("dead_letter.log", std::ios::app);
+    static const std::string log_path = "dead_letter.log";
+    struct stat st;
+    if (stat(log_path.c_str(), &st) == 0 && st.st_size > 100 * 1024 * 1024) {
+        std::string rotated = log_path + "." + std::to_string(std::time(nullptr));
+        std::rename(log_path.c_str(), rotated.c_str());
+        spdlog::info("Rotated dead_letter.log -> {}", rotated);
+    }
+
+    std::ofstream f(log_path, std::ios::app);
     if (!f.is_open()) {
         spdlog::error("Cannot open dead_letter.log, {} events lost", batch.size());
         return;

@@ -14,9 +14,15 @@ Processor::Processor(ThreadSafeQueue& q, Metrics& m) : queue_(q), metrics_(m) {
     if (kafka_bootstrap && kafka_bootstrap[0] != '\0') {
         rd_kafka_conf_t* conf = rd_kafka_conf_new();
         char errstr[512] = {0};
-        rd_kafka_conf_set(conf, "bootstrap.servers", kafka_bootstrap, errstr, sizeof(errstr));
-        rd_kafka_conf_set(conf, "acks", "1", errstr, sizeof(errstr));
-        rd_kafka_conf_set(conf, "compression.codec", "snappy", errstr, sizeof(errstr));
+        if (rd_kafka_conf_set(conf, "bootstrap.servers", kafka_bootstrap, errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+            spdlog::warn("Kafka config error (bootstrap): {}", errstr);
+        }
+        if (rd_kafka_conf_set(conf, "acks", "1", errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+            spdlog::warn("Kafka config error (acks): {}", errstr);
+        }
+        if (rd_kafka_conf_set(conf, "compression.codec", "snappy", errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+            spdlog::warn("Kafka config error (compression): {}", errstr);
+        }
 
         producer_ = rd_kafka_new(RD_KAFKA_PRODUCER, conf, errstr, sizeof(errstr));
         if (!producer_) {
@@ -76,7 +82,6 @@ void Processor::stop() {
     running_ = false;
     for (auto& t : threads_) if (t.joinable()) t.join();
 
-    // Drain remaining items from queue
     std::string data;
     while (queue_.try_pop(data)) {
         metrics_.total_received.fetch_add(1);
