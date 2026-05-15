@@ -68,6 +68,15 @@ python3 bench_client.py --count 100 --threads 2
 curl http://localhost:9090
 ```
 
+## 性能测试
+
+详细测试报告见 [PERFORMANCE_REPORT.md](./PERFORMANCE_REPORT.md)。
+
+**核心指标**：
+- 峰值 QPS：18,708（单组件）/ 13,707（全开）
+- P50 延迟：2.4-3.0ms
+- 5 分钟稳定性：200 万事件，11MB 内存，无泄漏
+
 ## 协议
 
 Length-Prefix Protocol：4 字节小端序头部（payload 长度）+ protobuf 序列化包体。
