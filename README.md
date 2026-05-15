@@ -70,7 +70,7 @@ curl http://localhost:9090
 
 ## 性能测试
 
-详细测试报告见 [PERFORMANCE_REPORT.md](./PERFORMANCE_REPORT.md)。
+详细测试报告见 [性能测试报告.md](./性能测试报告.md)。
 
 **核心指标**：
 - 峰值 QPS：18,708（单组件）/ 13,707（全开）
