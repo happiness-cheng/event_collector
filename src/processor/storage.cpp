@@ -10,6 +10,9 @@ Storage::Storage(Metrics& m) : metrics_(m) {
     clickhouse::ClientOptions opts;
     opts.SetHost("localhost");
     opts.SetPort(9000);
+    opts.SetConnectionConnectTimeout(std::chrono::seconds(3));
+    opts.SetConnectionRecvTimeout(std::chrono::seconds(3));
+    opts.SetConnectionSendTimeout(std::chrono::seconds(3));
     client_ = std::make_unique<clickhouse::Client>(opts);
     spdlog::info("Storage initialized (batch_size={})", BATCH_SIZE);
 }
