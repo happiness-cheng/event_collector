@@ -99,6 +99,8 @@ g++ -std=c++17 -pthread -Iinclude -o tests/test_queue tests/test_queue.cpp && ./
 ./test_integration.sh
 ```
 
+详见 [性能测试报告](./性能测试报告.md)
+
 ## License
 
 MIT
