@@ -5,16 +5,24 @@
 #include <chrono>
 #include <sys/stat.h>
 #include <ctime>
+#include <mutex>
+
+// dead_letter.log 写入的互斥锁，防止多线程同时写入
+static std::mutex dead_letter_mutex;
 
 Storage::Storage(Metrics& m) : metrics_(m) {
     clickhouse::ClientOptions opts;
-    opts.SetHost("localhost");
-    opts.SetPort(9000);
+
+    const char* ch_host = std::getenv("EVENT_COLLECTOR_CLICKHOUSE_HOST");
+    const char* ch_port = std::getenv("EVENT_COLLECTOR_CLICKHOUSE_PORT");
+    opts.SetHost(ch_host ? ch_host : "localhost");
+    opts.SetPort(ch_port ? std::stoi(ch_port) : 9000);
     opts.SetConnectionConnectTimeout(std::chrono::seconds(3));
     opts.SetConnectionRecvTimeout(std::chrono::seconds(3));
     opts.SetConnectionSendTimeout(std::chrono::seconds(3));
     client_ = std::make_unique<clickhouse::Client>(opts);
-    spdlog::info("Storage initialized (batch_size={})", BATCH_SIZE);
+    spdlog::info("Storage initialized (batch_size={}, host={}:{})",
+        BATCH_SIZE, opts.host, opts.port);
 }
 
 Storage::~Storage() {
@@ -66,6 +74,8 @@ void Storage::do_flush(std::vector<std::string>& batch) {
 }
 
 void Storage::write_dead_letter(const std::vector<std::string>& batch) {
+    std::lock_guard<std::mutex> lock(dead_letter_mutex);
+
     static const std::string log_path = "dead_letter.log";
     struct stat st;
     if (stat(log_path.c_str(), &st) == 0 && st.st_size > 100 * 1024 * 1024) {

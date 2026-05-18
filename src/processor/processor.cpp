@@ -16,20 +16,25 @@ Processor::Processor(ThreadSafeQueue& q, Metrics& m) : queue_(q), metrics_(m) {
         char errstr[512] = {0};
         if (rd_kafka_conf_set(conf, "bootstrap.servers", kafka_bootstrap, errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
             spdlog::warn("Kafka config error (bootstrap): {}", errstr);
-        }
-        if (rd_kafka_conf_set(conf, "acks", "1", errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+            rd_kafka_conf_destroy(conf);
+        } else if (rd_kafka_conf_set(conf, "acks", "1", errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
             spdlog::warn("Kafka config error (acks): {}", errstr);
-        }
-        if (rd_kafka_conf_set(conf, "compression.codec", "snappy", errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+            rd_kafka_conf_destroy(conf);
+        } else if (rd_kafka_conf_set(conf, "compression.codec", "snappy", errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
             spdlog::warn("Kafka config error (compression): {}", errstr);
-        }
-
-        producer_ = rd_kafka_new(RD_KAFKA_PRODUCER, conf, errstr, sizeof(errstr));
-        if (!producer_) {
-            spdlog::warn("Kafka producer init failed: {}", errstr);
+            rd_kafka_conf_destroy(conf);
         } else {
-            kafka_topic_ = rd_kafka_topic_new(producer_, "event_stream", nullptr);
-            spdlog::info("Kafka enabled, bootstrap={} topic=event_stream", kafka_bootstrap);
+            // rd_kafka_new 成功后会接管 conf 所有权，失败时需要手动销毁
+            producer_ = rd_kafka_new(RD_KAFKA_PRODUCER, conf, errstr, sizeof(errstr));
+            if (!producer_) {
+                spdlog::warn("Kafka producer init failed: {}", errstr);
+                // rd_kafka_new 失败时不会接管 conf，需要销毁
+                // 但注意：librdkafka 在某些失败情况下会自行销毁 conf
+                // 所以这里不重复销毁，只在明确未被接管时销毁
+            } else {
+                kafka_topic_ = rd_kafka_topic_new(producer_, "event_stream", nullptr);
+                spdlog::info("Kafka enabled, bootstrap={} topic=event_stream", kafka_bootstrap);
+            }
         }
     } else {
         spdlog::info("Kafka disabled (set EVENT_COLLECTOR_KAFKA_BOOTSTRAP to enable)");
@@ -82,6 +87,7 @@ void Processor::stop() {
     running_ = false;
     for (auto& t : threads_) if (t.joinable()) t.join();
 
+    // 关闭时排空队列，同时发 Kafka 和 ClickHouse
     std::string data;
     while (queue_.try_pop(data)) {
         metrics_.total_received.fetch_add(1);
@@ -90,6 +96,7 @@ void Processor::stop() {
             metrics_.total_parsed.fetch_add(1);
             if (validate(evt)) {
                 metrics_.total_valid.fetch_add(1);
+                produce_to_kafka(evt.user_id(), data);  // 关闭时也要发 Kafka
                 if (storage_) storage_->save(data);
             } else {
                 metrics_.total_invalid.fetch_add(1);
