@@ -1,10 +1,5 @@
 version: "3.8"
 
-# 基础设施服务：Redis + Kafka(KRaft) + ClickHouse
-# 使用方法：docker compose up -d
-# 停止：docker compose down
-# 清理数据：docker compose down -v
-
 services:
   redis:
     image: redis:7-alpine
@@ -27,7 +22,7 @@ services:
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
@@ -47,6 +42,7 @@ services:
       - "9000:9000"
     volumes:
       - clickhouse_data:/var/lib/clickhouse
+      - ./init/clickhouse-schema.sql:/docker-entrypoint-initdb.d/clickhouse-schema.sql:ro
     ulimits:
       nofile:
         soft: 262144

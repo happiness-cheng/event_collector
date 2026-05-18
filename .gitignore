@@ -10,3 +10,8 @@ temp/
 CLAUDE.md
 .vscode/
 *.code-workspace
+
+# protobuf generated files
+*.pb.h
+*.pb.cc
+*_pb2.py

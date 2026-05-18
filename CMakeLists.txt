@@ -49,6 +49,13 @@ find_library(HIREDIS_LIB
     REQUIRED
 )
 
+# 查找 librdkafka
+find_library(RDKAFKA_LIB
+    NAMES rdkafka
+    PATHS /usr/local/lib /usr/lib /usr/lib/x86_64-linux-gnu
+    REQUIRED
+)
+
 protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS proto/event.proto)
 
 add_subdirectory(src/collector)
@@ -61,6 +68,7 @@ add_executable(server
 
 target_include_directories(server PRIVATE
     include
+    ${CMAKE_CURRENT_BINARY_DIR}  # for generated protobuf headers
 )
 
 target_link_libraries(server PRIVATE
@@ -74,6 +82,7 @@ target_link_libraries(server PRIVATE
     ${LZ4_LIB}
     ${CITYHASH_LIB}
     ${ZSTD_LIB}
+    ${RDKAFKA_LIB}
     Boost::system
     Boost::thread
     spdlog::spdlog
