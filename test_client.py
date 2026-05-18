@@ -1,4 +1,4 @@
-import socket, struct, event_pb2, time, random, threading
+import socket, struct, event_pb2, time, random
 from concurrent.futures import ThreadPoolExecutor
 
 success = 0
@@ -18,17 +18,16 @@ def send_one():
         event.payload = b"x" * random.randint(10, 200)
 
         data = event.SerializeToString()
-        sock = socket.socket()
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(2)
         sock.connect(("localhost", 8080))
         sock.sendall(struct.pack("<I", len(data)) + data)
         sock.close()
         latencies.append((time.time() - start) * 1000)
         success += 1
-    except:
+    except Exception:
         fail += 1
 
-# 并发1000条
 executor = ThreadPoolExecutor(max_workers=50)
 for _ in range(1000):
     executor.submit(send_one)

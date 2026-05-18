@@ -10,6 +10,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import event_pb2
 
 success = 0
 fail = 0
@@ -27,7 +28,6 @@ def send_one(host, port, timeout):
         ts = int(time.time() * 1000)
         pl = b"x" * random.randint(10, 200)
 
-        import event_pb2
         e = event_pb2.Event()
         e.event_id = evt_id
         e.user_id = uid
