@@ -49,33 +49,33 @@ find_library(HIREDIS_LIB
     REQUIRED
 )
 
-find_library(RDKAFKA_LIB
-    NAMES rdkafka++
-    PATHS /usr/local/lib /usr/lib /usr/lib/x86_64-linux-gnu
-    REQUIRED
-)
-find_library(RDKAFKA_C_LIB
-    NAMES rdkafka
-    PATHS /usr/local/lib /usr/lib /usr/lib/x86_64-linux-gnu
-    REQUIRED
-)
-
 protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS proto/event.proto)
 
 add_subdirectory(src/collector)
 add_subdirectory(src/processor)
 add_subdirectory(src/monitor)
 
-add_executable(server src/main.cpp)
+add_executable(server
+    src/main.cpp
+)
 
-target_include_directories(server PRIVATE include)
+target_include_directories(server PRIVATE
+    include
+)
 
 target_link_libraries(server PRIVATE
-    collector processor monitor
+    collector
+    processor
+    monitor
     ${Protobuf_LIBRARIES}
-    ${RDKAFKA_LIB} ${RDKAFKA_C_LIB}
-    ${REDISPLUSPLUS_LIB} ${HIREDIS_LIB}
-    ${CLICKHOUSE_CPP_LIB} ${LZ4_LIB} ${CITYHASH_LIB} ${ZSTD_LIB}
-    Boost::system Boost::thread
-    spdlog::spdlog Threads::Threads
+    ${REDISPLUSPLUS_LIB}
+    ${HIREDIS_LIB}
+    ${CLICKHOUSE_CPP_LIB}
+    ${LZ4_LIB}
+    ${CITYHASH_LIB}
+    ${ZSTD_LIB}
+    Boost::system
+    Boost::thread
+    spdlog::spdlog
+    Threads::Threads
 )
