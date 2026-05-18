@@ -1,5 +1,4 @@
 #include "collector.h"
-#include "event.pb.h"
 #include <spdlog/spdlog.h>
 #include <cstring>
 
@@ -23,8 +22,8 @@ void Collector::start() {
 
 Session::Session(boost::asio::ip::tcp::socket sock, ThreadSafeQueue& q)
     : socket_(std::move(sock)), timer_(socket_.get_executor()), queue_(q) {
-    active_count_++;
-    if (active_count_ > MAX_CONNECTIONS) {
+    int count = active_count_.fetch_add(1) + 1;
+    if (count > static_cast<int>(MAX_CONNECTIONS)) {
         spdlog::warn("Max connections ({}) exceeded", MAX_CONNECTIONS);
         socket_.close();
     }
@@ -50,12 +49,12 @@ void Session::do_read_header() {
             } else {
                 spdlog::warn("[invalid_len] len={}", len);
                 self->socket_.close();
-                self->active_count_--;
+                self->active_count_.fetch_sub(1);
                 return;
             }
         } else {
             spdlog::debug("[conn_close] {}", ec.message());
-            self->active_count_--;
+            self->active_count_.fetch_sub(1);
         }
     });
 }
@@ -70,7 +69,7 @@ void Session::do_read_body(std::size_t len) {
             self->do_read_header();
         } else {
             spdlog::debug("[conn_close] {}", ec.message());
-            self->active_count_--;
+            self->active_count_.fetch_sub(1);
         }
     });
 }
@@ -86,5 +85,5 @@ void Session::start_timeout() {
 void Session::on_timeout() {
     spdlog::warn("[timeout] closing idle connection");
     socket_.close();
-    active_count_--;
+    active_count_.fetch_sub(1);
 }
