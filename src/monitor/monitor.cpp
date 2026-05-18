@@ -1,14 +1,13 @@
 #include "monitor.h"
 #include <spdlog/spdlog.h>
 #include <sstream>
-#include <ctime>
 
 Monitor::Monitor(boost::asio::io_context& io, uint16_t port, Metrics& m)
     : acceptor_(io, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), port)),
       metrics_(m) {}
 
 void Monitor::start() {
-    spdlog::info("Prometheus metrics 端点已启动，监听 :{}", acceptor_.local_endpoint().port());
+    spdlog::info("Prometheus metrics endpoint started, listening :{}", acceptor_.local_endpoint().port());
     do_accept();
 }
 
