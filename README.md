@@ -15,6 +15,32 @@
 - **Prometheus 监控** — :9090 端点暴露 11 个 Counter 指标
 - **优雅退出** — SIGINT/SIGTERM 信号处理，排空队列后退出
 
+## 架构
+
+```
+                              TCP :8080 [4-byte LE len][protobuf body]
+                         ┌──────────────────────────────────────┐
+┌──────────┐             │         event_collector              │
+│  Client  │────────────▶│                                     │
+│ (Python) │             │  Collector (Boost.Asio)             │
+│ protobuf │             │    async_accept → Session           │
+│ len-prefix             │    do_read_header → do_read_body    │
+└──────────┘             │         │                           │
+                         │         ▼                           │
+                         │  BoundedQueue (cap 10,000)          │
+                         │    mutex + condition_variable       │
+                         │         │                           │
+                         │         ▼                           │
+                         │  Processor (×4 Workers)             │
+                         │    ├→ Redis Lua 限流                │
+                         │    ├→ Kafka 异步投递                 │
+                         │    └→ ClickHouse 批量写入            │
+                         │                                     │
+                         │  Monitor (HTTP :9090)               │
+                         │    11 个 Prometheus Counter          │
+                         └──────────────────────────────────────┘
+```
+
 ## 技术栈
 
 | 类别 | 技术 |
