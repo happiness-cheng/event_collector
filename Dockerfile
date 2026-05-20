@@ -57,4 +57,8 @@ RUN ldconfig
 WORKDIR /app
 EXPOSE 8080 9090
 
+# 以非 root 用户运行，降低容器逃逸风险
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+USER appuser
+
 CMD ["./server"]
