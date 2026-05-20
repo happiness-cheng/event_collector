@@ -26,6 +26,7 @@ Session::Session(boost::asio::ip::tcp::socket sock, ThreadSafeQueue& q)
     if (count > static_cast<int>(MAX_CONNECTIONS)) {
         spdlog::warn("Max connections ({}) exceeded", MAX_CONNECTIONS);
         socket_.close();
+        active_count_.fetch_sub(1);  // 修复：超限后回滚计数
     }
 }
 
@@ -64,7 +65,9 @@ void Session::do_read_body(std::size_t len) {
     boost::asio::async_read(socket_, boost::asio::buffer(self->body_), [self](boost::system::error_code ec, std::size_t) {
         if (!ec) {
             self->timer_.expires_after(TIMEOUT_SECS);
-            self->queue_.push(std::string(self->body_.data(), self->body_.size()));
+            if (!self->queue_.try_push(std::string(self->body_.data(), self->body_.size()))) {
+                spdlog::warn("[queue_full] dropping event");
+            }
             spdlog::debug("[enqueue] bytes={}", self->body_.size());
             self->do_read_header();
         } else {
