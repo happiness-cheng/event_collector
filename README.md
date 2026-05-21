@@ -2,6 +2,8 @@
 
 **简体中文** | [English](./README_en.md)
 
+> 单机 17,000+ QPS 高并发事件采集服务，P50 延迟 2.4ms，200 万事件内存恒定 11MB。
+
 基于 Boost.Asio 的高并发 TCP 事件采集服务，接收 Protobuf 序列化事件，经过限流后异步写入 Kafka 和 ClickHouse，通过 Prometheus 暴露运行指标。
 
 ## 功能特性
@@ -17,28 +19,24 @@
 
 ## 架构
 
-```
-                              TCP :8080 [4-byte LE len][protobuf body]
-                         ┌──────────────────────────────────────┐
-┌──────────┐             │         event_collector              │
-│  Client  │────────────▶│                                     │
-│ (Python) │             │  Collector (Boost.Asio)             │
-│ protobuf │             │    async_accept → Session           │
-│ len-prefix             │    do_read_header → do_read_body    │
-└──────────┘             │         │                           │
-                         │         ▼                           │
-                         │  BoundedQueue (cap 10,000)          │
-                         │    mutex + condition_variable       │
-                         │         │                           │
-                         │         ▼                           │
-                         │  Processor (×4 Workers)             │
-                         │    ├→ Redis Lua 限流                │
-                         │    ├→ Kafka 异步投递                 │
-                         │    └→ ClickHouse 批量写入            │
-                         │                                     │
-                         │  Monitor (HTTP :9090)               │
-                         │    11 个 Prometheus Counter          │
-                         └──────────────────────────────────────┘
+```mermaid
+graph LR
+    A[Client<br/>Python protobuf] -->|TCP :8080| B[Collector<br/>Boost.Asio]
+    B --> C[BoundedQueue<br/>cap 10000]
+    C --> D[Worker 1]
+    C --> E[Worker 2]
+    C --> F[Worker 3]
+    C --> G[Worker 4]
+    D --> H[Redis Lua 限流]
+    D --> I[Kafka 异步投递]
+    D --> J[ClickHouse 批量写入]
+    B --> K[Prometheus :9090]
+
+    style B fill:#4CAF50,color:#fff
+    style C fill:#2196F3,color:#fff
+    style H fill:#FF9800,color:#fff
+    style I fill:#E91E63,color:#fff
+    style J fill:#9C27B0,color:#fff
 ```
 
 ## 技术栈
@@ -56,7 +54,22 @@
 
 ## 快速开始
 
+### Docker（推荐）
+
 ```bash
+git clone https://github.com/happiness-cheng/event_collector.git
+cd event_collector
+docker compose up -d
+```
+
+### 手动编译
+
+```bash
+# 安装依赖（Ubuntu/Debian）
+sudo apt install -y build-essential cmake libboost-all-dev \
+    libprotobuf-dev protobuf-compiler \
+    librdkafka-dev libhiredis-dev libssl-dev
+
 git clone https://github.com/happiness-cheng/event_collector.git
 cd event_collector
 mkdir build && cd build
@@ -87,6 +100,8 @@ make -j$(nproc)
 | 峰值 QPS（仅 TCP） | 17,535 |
 | P50 延迟 | 2.4 - 3.0ms |
 | 5 分钟稳定性 | 200 万事件，RSS 恒定 11MB |
+
+> 测试环境：本地回环，单机运行。压测命令：`python bench_client.py`
 
 ## 项目结构
 
