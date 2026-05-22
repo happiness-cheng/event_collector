@@ -18,10 +18,25 @@ int main() {
         Metrics metrics;
         ThreadSafeQueue queue(10000);
 
+        // 解析端口配置，stoi 可能抛异常（非法输入），捕获后使用默认值
+        uint16_t collector_port = 8080;
         const char* collector_port_str = std::getenv("EVENT_COLLECTOR_PORT");
-        uint16_t collector_port = collector_port_str ? static_cast<uint16_t>(std::stoi(collector_port_str)) : 8080;
+        if (collector_port_str) {
+            try {
+                collector_port = static_cast<uint16_t>(std::stoi(collector_port_str));
+            } catch (const std::exception& e) {
+                spdlog::warn("invalid EVENT_COLLECTOR_PORT '{}', using default 8080: {}", collector_port_str, e.what());
+            }
+        }
+        uint16_t monitor_port = 9090;
         const char* monitor_port_str = std::getenv("EVENT_COLLECTOR_PROMETHEUS_PORT");
-        uint16_t monitor_port = monitor_port_str ? static_cast<uint16_t>(std::stoi(monitor_port_str)) : 9090;
+        if (monitor_port_str) {
+            try {
+                monitor_port = static_cast<uint16_t>(std::stoi(monitor_port_str));
+            } catch (const std::exception& e) {
+                spdlog::warn("invalid EVENT_COLLECTOR_PROMETHEUS_PORT '{}', using default 9090: {}", monitor_port_str, e.what());
+            }
+        }
 
         Collector collector(io_context, collector_port, queue);
         collector.start();
