@@ -25,6 +25,7 @@ Session::Session(boost::asio::ip::tcp::socket sock, ThreadSafeQueue& q)
     int count = active_count_.fetch_add(1) + 1;
     if (count > static_cast<int>(MAX_CONNECTIONS)) {
         spdlog::warn("Max connections ({}) exceeded", MAX_CONNECTIONS);
+        active_count_.fetch_sub(1);  // 回滚计数，防止泄漏
         socket_.close();
     }
 }
