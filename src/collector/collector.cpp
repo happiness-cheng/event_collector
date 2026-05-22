@@ -8,17 +8,24 @@ Collector::Collector(boost::asio::io_context& io, uint16_t port, ThreadSafeQueue
     : acceptor_(io, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), port)), queue_(q) {}
 
 void Collector::start() {
-    acceptor_.async_accept([this](boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
-        if (!ec) {
-            auto remote = sock.remote_endpoint();
-            spdlog::info("[connect] {}:{}", remote.address().to_string(), remote.port());
-            std::make_shared<Session>(std::move(sock), queue_)->start();
-        } else {
-            spdlog::warn("[accept_fail] {}", ec.message());
-        }
-        start();
-    });
-}
+      acceptor_.async_accept([this](boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
+          if (!ec) {
+              // 新增：创建 Session 前检查连接数
+              if (Session::active_count() >= Session::MAX_CONNECTIONS) {
+                  spdlog::warn("Max connections ({}) exceeded, rejecting", MAX_CONNECTIONS);
+                  sock.close();
+                  start();  // 继续监听
+                  return;
+              }
+              auto remote = sock.remote_endpoint();
+              spdlog::info("[connect] {}:{}", remote.address().to_string(), remote.port());
+              std::make_shared<Session>(std::move(sock), queue_)->start();
+          } else {
+              spdlog::warn("[accept_fail] {}", ec.message());
+          }
+          start();
+      });
+  }
 
 Session::Session(boost::asio::ip::tcp::socket sock, ThreadSafeQueue& q)
     : socket_(std::move(sock)), timer_(socket_.get_executor()), queue_(q) {
@@ -65,7 +72,9 @@ void Session::do_read_body(std::size_t len) {
     boost::asio::async_read(socket_, boost::asio::buffer(self->body_), [self](boost::system::error_code ec, std::size_t) {
         if (!ec) {
             self->timer_.expires_after(TIMEOUT_SECS);
-            self->queue_.push(std::string(self->body_.data(), self->body_.size()));
+            if(!self->queue_.push(std::string(self->body_.data(), self->body_.size()))){
+                spdlog::warn("[queue_full] dropping event");
+            }
             spdlog::debug("[enqueue] bytes={}", self->body_.size());
             self->do_read_header();
         } else {

@@ -17,7 +17,6 @@ public:
         std::unique_lock<std::mutex> lk(mtx_);
         not_full_.wait(lk, [this]{ return queue_.size() < capacity_; });
         queue_.push(value);
-        lk.unlock();
         not_empty_.notify_one();
     }
 
@@ -29,6 +28,22 @@ public:
         not_empty_.notify_one();
     }
 
+    bool try_push(const std::string& value) {
+      std::lock_guard<std::mutex> lk(mtx_);
+      if (queue_.size() >= capacity_) return false;
+      queue_.push(value);
+      not_empty_.notify_one();
+      return true;
+  }
+
+  bool try_push(std::string&& value) {
+      std::lock_guard<std::mutex> lk(mtx_);
+      if (queue_.size() >= capacity_) return false;
+      queue_.push(std::move(value));
+      not_empty_.notify_one();
+      return true;
+  }
+  
     bool try_pop(std::string& data) {
         std::lock_guard<std::mutex> lk(mtx_);
         if (queue_.empty()) return false;
