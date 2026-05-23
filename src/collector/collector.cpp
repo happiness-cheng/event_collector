@@ -4,35 +4,27 @@
 
 std::atomic<int> Session::active_count_{0};
 
-Collector::Collector(boost::asio::io_context& io, uint16_t port, ThreadSafeQueue& q)
-    : acceptor_(io, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), port)), queue_(q) {}
+Collector::Collector(boost::asio::io_context& io, uint16_t port, ThreadSafeQueue& q, Metrics& m)
+    : acceptor_(io, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), port)), queue_(q), metrics_(m) {}
 
 void Collector::start() {
-      acceptor_.async_accept([this](boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
-          if (!ec) {
-              // 新增：创建 Session 前检查连接数
-              if (Session::active_count() >= Session::MAX_CONNECTIONS) {
-                  spdlog::warn("Max connections ({}) exceeded, rejecting", MAX_CONNECTIONS);
-                  sock.close();
-                  start();  // 继续监听
-                  return;
-              }
-              auto remote = sock.remote_endpoint();
-              spdlog::info("[connect] {}:{}", remote.address().to_string(), remote.port());
-              std::make_shared<Session>(std::move(sock), queue_)->start();
-          } else {
-              spdlog::warn("[accept_fail] {}", ec.message());
-          }
-          start();
-      });
-  }
+    acceptor_.async_accept([this](boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
+        if (!ec) {
+            auto remote = sock.remote_endpoint();
+            spdlog::info("[connect] {}:{}", remote.address().to_string(), remote.port());
+            std::make_shared<Session>(std::move(sock), queue_, metrics_)->start();
+        } else {
+            spdlog::warn("[accept_fail] {}", ec.message());
+        }
+        start();
+    });
+}
 
-Session::Session(boost::asio::ip::tcp::socket sock, ThreadSafeQueue& q)
-    : socket_(std::move(sock)), timer_(socket_.get_executor()), queue_(q) {
+Session::Session(boost::asio::ip::tcp::socket sock, ThreadSafeQueue& q, Metrics& m)
+    : socket_(std::move(sock)), timer_(socket_.get_executor()), queue_(q), metrics_(m) {
     int count = active_count_.fetch_add(1) + 1;
     if (count > static_cast<int>(MAX_CONNECTIONS)) {
         spdlog::warn("Max connections ({}) exceeded", MAX_CONNECTIONS);
-        active_count_.fetch_sub(1);  // 回滚计数，防止泄漏
         socket_.close();
         active_count_.fetch_sub(1);  // 修复：超限后回滚计数
     }
@@ -74,6 +66,7 @@ void Session::do_read_body(std::size_t len) {
         if (!ec) {
             self->timer_.expires_after(TIMEOUT_SECS);
             if (!self->queue_.try_push(std::string(self->body_.data(), self->body_.size()))) {
+                self->metrics_.total_queue_drop.fetch_add(1);
                 spdlog::warn("[queue_full] dropping event");
             }
             spdlog::debug("[enqueue] bytes={}", self->body_.size());

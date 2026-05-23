@@ -12,13 +12,11 @@
 int main() {
     try {
         boost::asio::io_context io_context;
-        // work guard 防止 io_context.run() 在没有待处理操作时提前返回
         auto work_guard = boost::asio::make_work_guard(io_context);
 
         Metrics metrics;
         ThreadSafeQueue queue(10000);
 
-        // 解析端口配置，stoi 可能抛异常（非法输入），捕获后使用默认值
         uint16_t collector_port = 8080;
         const char* collector_port_str = std::getenv("EVENT_COLLECTOR_PORT");
         if (collector_port_str) {
@@ -38,7 +36,7 @@ int main() {
             }
         }
 
-        Collector collector(io_context, collector_port, queue);
+        Collector collector(io_context, collector_port, queue, metrics);
         collector.start();
 
         Processor processor(queue, metrics);
@@ -50,8 +48,8 @@ int main() {
         boost::asio::signal_set signals(io_context, SIGINT, SIGTERM);
         signals.async_wait([&io_context, &work_guard, &processor](boost::system::error_code, int sig) {
             spdlog::info("Received signal {}, shutting down...", sig);
-            work_guard.reset();  // 释放 work guard，允许 io_context.run() 返回
-            processor.stop();    // 先停止 processor，确保队列排空
+            work_guard.reset();
+            processor.stop();
             io_context.stop();
         });
 

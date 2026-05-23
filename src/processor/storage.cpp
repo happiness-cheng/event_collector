@@ -1,5 +1,7 @@
 #include "storage.h"
+#include "event.pb.h"
 #include <clickhouse/client.h>
+#include <clickhouse/columns/numeric.h>
 #include <spdlog/spdlog.h>
 #include <fstream>
 #include <chrono>
@@ -7,7 +9,6 @@
 #include <ctime>
 #include <mutex>
 
-// dead_letter.log 写入的互斥锁，防止多线程同时写入
 static std::mutex dead_letter_mutex;
 
 Storage::Storage(Metrics& m) : metrics_(m) {
@@ -55,9 +56,38 @@ void Storage::do_flush(std::vector<std::string>& batch) {
     if (batch.empty()) return;
 
     clickhouse::Block block;
-    auto col = std::make_shared<clickhouse::ColumnString>();
-    for (auto& d : batch) col->Append(d);
-    block.AppendColumn("payload", col);
+    auto event_id_col   = std::make_shared<clickhouse::ColumnString>();
+    auto user_id_col    = std::make_shared<clickhouse::ColumnString>();
+    auto event_type_col = std::make_shared<clickhouse::ColumnString>();
+    auto platform_col   = std::make_shared<clickhouse::ColumnString>();
+    auto ts_col         = std::make_shared<clickhouse::ColumnUInt64>();
+    auto payload_col    = std::make_shared<clickhouse::ColumnString>();
+
+    for (auto& d : batch) {
+        event::Event evt;
+        if (evt.ParseFromString(d)) {
+            event_id_col->Append(evt.event_id());
+            user_id_col->Append(evt.user_id());
+            event_type_col->Append(evt.event_type());
+            platform_col->Append(evt.platform());
+            ts_col->Append(static_cast<uint64_t>(evt.ts()));
+            payload_col->Append(evt.payload());
+        } else {
+            event_id_col->Append("");
+            user_id_col->Append("");
+            event_type_col->Append("");
+            platform_col->Append("");
+            ts_col->Append(0);
+            payload_col->Append(d);
+        }
+    }
+
+    block.AppendColumn("event_id", event_id_col);
+    block.AppendColumn("user_id", user_id_col);
+    block.AppendColumn("event_type", event_type_col);
+    block.AppendColumn("platform", platform_col);
+    block.AppendColumn("ts", ts_col);
+    block.AppendColumn("payload", payload_col);
 
     for (int retry = 0; retry < 3; ++retry) {
         try {

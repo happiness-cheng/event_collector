@@ -62,6 +62,7 @@ std::string Monitor::build_prometheus_text() {
     out << format_metric("event_stored_total",      "Events stored to ClickHouse",        "counter", metrics_.total_stored.load());
     out << format_metric("event_store_fail_total",  "Events failed to store",             "counter", metrics_.total_store_fail.load());
     out << format_metric("event_store_dead_total",  "Events written to dead_letter",      "counter", metrics_.total_store_dead.load());
+    out << format_metric("event_queue_drop_total",  "Events dropped due to queue full",   "counter", metrics_.total_queue_drop.load());
 
     return out.str();
 }
