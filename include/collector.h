@@ -1,6 +1,7 @@
 #pragma once
 #include <boost/asio.hpp>
 #include "queue.h"
+#include "metrics.h"
 #include <memory>
 #include <array>
 #include <vector>
@@ -8,19 +9,19 @@
 
 class Collector {
 public:
-    Collector(boost::asio::io_context& io, uint16_t port, ThreadSafeQueue& q);
+    Collector(boost::asio::io_context& io, uint16_t port, ThreadSafeQueue& q, Metrics& m);
     void start();
 private:
     boost::asio::ip::tcp::acceptor acceptor_;
     ThreadSafeQueue& queue_;
+    Metrics& metrics_;
 };
 
 class Session : public std::enable_shared_from_this<Session> {
 public:
-    Session(boost::asio::ip::tcp::socket sock, ThreadSafeQueue& q);
+    Session(boost::asio::ip::tcp::socket sock, ThreadSafeQueue& q, Metrics& m);
     void start();
-    static constexpr std::size_t MAX_CONNECTIONS = 10000;
-    static int active_count() { return active_count_.load(); }
+    static int active_connections() { return active_count_.load(); }
 private:
     void do_read_header();
     void do_read_body(std::size_t body_length);
@@ -31,6 +32,8 @@ private:
     std::array<char, 4> header_;
     std::vector<char> body_;
     ThreadSafeQueue& queue_;
+    Metrics& metrics_;
+    static constexpr std::size_t MAX_CONNECTIONS = 10000;
     static constexpr auto TIMEOUT_SECS = std::chrono::seconds(30);
     static std::atomic<int> active_count_;
 };

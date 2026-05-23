@@ -24,13 +24,9 @@ Processor::Processor(ThreadSafeQueue& q, Metrics& m) : queue_(q), metrics_(m) {
             spdlog::warn("Kafka config error (compression): {}", errstr);
             rd_kafka_conf_destroy(conf);
         } else {
-            // rd_kafka_new 成功后会接管 conf 所有权，失败时需要手动销毁
             producer_ = rd_kafka_new(RD_KAFKA_PRODUCER, conf, errstr, sizeof(errstr));
             if (!producer_) {
                 spdlog::warn("Kafka producer init failed: {}", errstr);
-                // rd_kafka_new 失败时不会接管 conf，需要销毁
-                // 但注意：librdkafka 在某些失败情况下会自行销毁 conf
-                // 所以这里不重复销毁，只在明确未被接管时销毁
             } else {
                 kafka_topic_ = rd_kafka_topic_new(producer_, "event_stream", nullptr);
                 spdlog::info("Kafka enabled, bootstrap={} topic=event_stream", kafka_bootstrap);
@@ -87,7 +83,6 @@ void Processor::stop() {
     running_ = false;
     for (auto& t : threads_) if (t.joinable()) t.join();
 
-    // 关闭时排空队列，同时发 Kafka 和 ClickHouse
     std::string data;
     while (queue_.try_pop(data)) {
         metrics_.total_received.fetch_add(1);
@@ -96,7 +91,7 @@ void Processor::stop() {
             metrics_.total_parsed.fetch_add(1);
             if (validate(evt)) {
                 metrics_.total_valid.fetch_add(1);
-                produce_to_kafka(evt.user_id(), data);  // 关闭时也要发 Kafka
+                produce_to_kafka(evt.user_id(), data);
                 if (storage_) storage_->save(data);
             } else {
                 metrics_.total_invalid.fetch_add(1);
@@ -114,8 +109,10 @@ void Processor::stop() {
 }
 
 bool Processor::validate(const event::Event& evt) {
-    if (evt.user_id().empty()) return false;
-    if (evt.event_type().empty()) return false;
+    if (evt.user_id().empty() || evt.user_id().size() > 256) return false;
+    if (evt.event_type().empty() || evt.event_type().size() > 256) return false;
+    if (evt.platform().size() > 64) return false;
+    if (evt.payload().size() > 65536) return false;
     if (evt.ts() <= 0) return false;
     auto now = std::time(nullptr) * 1000;
     if (evt.ts() > now + 86400000LL || evt.ts() < now - 86400000LL * 30) return false;

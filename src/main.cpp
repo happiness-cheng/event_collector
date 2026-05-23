@@ -12,18 +12,31 @@
 int main() {
     try {
         boost::asio::io_context io_context;
-        // work guard 防止 io_context.run() 在没有待处理操作时提前返回
         auto work_guard = boost::asio::make_work_guard(io_context);
 
         Metrics metrics;
         ThreadSafeQueue queue(10000);
 
+        uint16_t collector_port = 8080;
         const char* collector_port_str = std::getenv("EVENT_COLLECTOR_PORT");
-        uint16_t collector_port = collector_port_str ? static_cast<uint16_t>(std::stoi(collector_port_str)) : 8080;
+        if (collector_port_str) {
+            try {
+                collector_port = static_cast<uint16_t>(std::stoi(collector_port_str));
+            } catch (const std::exception& e) {
+                spdlog::warn("invalid EVENT_COLLECTOR_PORT '{}', using default 8080: {}", collector_port_str, e.what());
+            }
+        }
+        uint16_t monitor_port = 9090;
         const char* monitor_port_str = std::getenv("EVENT_COLLECTOR_PROMETHEUS_PORT");
-        uint16_t monitor_port = monitor_port_str ? static_cast<uint16_t>(std::stoi(monitor_port_str)) : 9090;
+        if (monitor_port_str) {
+            try {
+                monitor_port = static_cast<uint16_t>(std::stoi(monitor_port_str));
+            } catch (const std::exception& e) {
+                spdlog::warn("invalid EVENT_COLLECTOR_PROMETHEUS_PORT '{}', using default 9090: {}", monitor_port_str, e.what());
+            }
+        }
 
-        Collector collector(io_context, collector_port, queue);
+        Collector collector(io_context, collector_port, queue, metrics);
         collector.start();
 
         Processor processor(queue, metrics);
@@ -35,8 +48,8 @@ int main() {
         boost::asio::signal_set signals(io_context, SIGINT, SIGTERM);
         signals.async_wait([&io_context, &work_guard, &processor](boost::system::error_code, int sig) {
             spdlog::info("Received signal {}, shutting down...", sig);
-            work_guard.reset();  // 释放 work guard，允许 io_context.run() 返回
-            processor.stop();    // 先停止 processor，确保队列排空
+            work_guard.reset();
+            processor.stop();
             io_context.stop();
         });
 
