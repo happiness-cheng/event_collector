@@ -2,13 +2,13 @@
 
 **简体中文** | [English](./README_en.md)
 
-> 单机 17,000+ QPS 高并发事件采集服务，P50 延迟 2.4ms，200 万事件内存恒定 11MB。
+> 单机 **30,000+ QPS** 高并发事件采集服务，100 万事件 **0 丢包**，内存仅 **12MB**。已部署 Azure 云端并通过极限压测。
 
 基于 Boost.Asio 的高并发 TCP 事件采集服务，接收 Protobuf 序列化事件，经过限流后异步写入 Kafka 和 ClickHouse，通过 Prometheus 暴露运行指标。
 
 ## 功能特性
 
-- **高并发 TCP 收包** — Boost.Asio 异步 I/O，支持万级并发连接
+- **高并发 TCP 收包** — Boost.Asio 异步 I/O，实测 30,000+ QPS，100 万事件 0 丢包
 - **Length-Prefix 协议** — 4 字节长度头 + Protobuf 包体
 - **线程安全有界队列** — 满时阻塞，支持超时 pop
 - **多 Worker 处理** — 4 个 Worker 线程消费队列：反序列化 → 限流 → Kafka → ClickHouse
@@ -16,6 +16,8 @@
 - **降级模式** — Redis/Kafka/ClickHouse 均为可选，未配置时降级运行
 - **Prometheus 监控** — :9090 端点暴露 11 个 Counter 指标
 - **优雅退出** — SIGINT/SIGTERM 信号处理，排空队列后退出
+- **Docker 一键部署** — 多阶段构建，生产环境容器化运行
+- **云端验证** — Azure VM 部署并通过百万级极限压测
 
 ## 架构
 
@@ -92,16 +94,52 @@ make -j$(nproc)
 | `EVENT_COLLECTOR_REDIS_HOST` | `127.0.0.1` | Redis 地址 |
 | `EVENT_COLLECTOR_RATE_LIMIT` | `100` | 每用户每分钟限流阈值 |
 
+## 云端部署
+
+项目已部署至 **Azure VM**（Southeast Asia），使用 Docker 容器化运行：
+
+```
+event_collector → Kafka → (ClickHouse)
+     ↕
+  Prometheus :9090（监控指标）
+```
+
+部署命令：
+
+```bash
+# 1. 启动中间件
+docker compose up -d
+
+# 2. 启动 event_collector
+docker run -d --name event-collector \
+  --network event_collector_default \
+  -p 8080:8080 -p 9090:9090 \
+  -e EVENT_COLLECTOR_KAFKA_BOOTSTRAP=kafka:9092 \
+  event-collector
+```
+
 ## 性能
+
+### 云端压测（Azure VM, Docker 部署）
+
+| 测试 | 事件数 | 线程 | QPS | 丢包 | P50 | P99 | 内存 |
+|------|--------|------|-----|------|-----|-----|------|
+| 轻量 | 5,000 | 20 | 19,481 | 0% | 0.02ms | 16.98ms | — |
+| 中等 | 100,000 | 50 | 30,213 | 0% | 0.01ms | 36.01ms | — |
+| **极限** | **1,000,000** | **100** | **26,859** | **0%** | **0.01ms** | **88.39ms** | **12.74MB** |
+
+> 云端累计处理 **110.5 万事件**，Prometheus 验证 `received=1105000, kafka_ok=1105000, invalid=0, parse_fail=0`
+
+### 本地压测（WSL2, AMD Ryzen 5 5600U）
 
 | 指标 | 数据 |
 |------|------|
+| 峰值 QPS（仅 Kafka） | 18,708 |
 | 峰值 QPS（全开） | 13,707 |
-| 峰值 QPS（仅 TCP） | 17,535 |
 | P50 延迟 | 2.4 - 3.0ms |
-| 5 分钟稳定性 | 200 万事件，RSS 恒定 11MB |
+| 最大测试量 | 200 万事件，RSS 恒定 11MB |
 
-> 测试环境：本地回环，单机运行。压测命令：`python bench_client.py`
+> 详见 [性能测试报告](./性能测试报告.md)
 
 ## 项目结构
 
