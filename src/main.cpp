@@ -46,10 +46,12 @@ int main() {
         monitor.start();
 
         boost::asio::signal_set signals(io_context, SIGINT, SIGTERM);
-        signals.async_wait([&io_context, &work_guard](boost::system::error_code, int sig) {
+        signals.async_wait([&io_context, &work_guard, &collector, &processor](boost::system::error_code, int sig) {
             spdlog::info("Received signal {}, shutting down...", sig);
             collector.stop();
+            processor.stop();
             work_guard.reset();
+            io_context.stop();
         });
 
         std::vector<std::thread> io_threads;
