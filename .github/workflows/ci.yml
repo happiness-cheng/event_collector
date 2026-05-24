@@ -46,9 +46,9 @@ jobs:
           cmake .. -DCMAKE_BUILD_TYPE=Release
           make -j$(nproc) && sudo make install
           sudo cp /tmp/ch/contrib/cityhash/cityhash/city.h /usr/local/include/
-          sudo cp /tmp/ch/b/contrib/cityhash/cityhash/libcityhash.a /usr/local/lib/
+          sudo cp /tmp/ch/build/contrib/cityhash/cityhash/libcityhash.a /usr/local/lib/
           sudo cp -r /tmp/ch/contrib/absl/absl /usr/local/include/
-          sudo cp /tmp/ch/b/contrib/absl/absl/libabsl_int128.a /usr/local/lib/
+          sudo cp /tmp/ch/build/contrib/absl/absl/libabsl_int128.a /usr/local/lib/
 
       - name: Regenerate protobuf
         run: |
