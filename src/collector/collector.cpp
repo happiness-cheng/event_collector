@@ -26,7 +26,7 @@ void Collector::start() {
     });
 }
 
-void Session::stop(){
+void Collector::stop() {
     boost::system::error_code ec;
       acceptor_.close(ec);
       if (ec) spdlog::warn("acceptor close error: {}", ec.message());
