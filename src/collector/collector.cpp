@@ -26,6 +26,13 @@ void Collector::start() {
     });
 }
 
+void Session::stop(){
+    boost::system::error_code ec;
+      acceptor_.close(ec);
+      if (ec) spdlog::warn("acceptor close error: {}", ec.message());
+      else spdlog::info("acceptor closed, no new connections");
+}
+
 Session::Session(boost::asio::ip::tcp::socket sock, ThreadSafeQueue& q, Metrics& m)
     : socket_(std::move(sock)), timer_(socket_.get_executor()), queue_(q), metrics_(m) {
     active_count_.fetch_add(1);

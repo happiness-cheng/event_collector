@@ -11,6 +11,7 @@ class Collector {
 public:
     Collector(boost::asio::io_context& io, uint16_t port, ThreadSafeQueue& q, Metrics& m);
     void start();
+    void stop();
 private:
     boost::asio::ip::tcp::acceptor acceptor_;
     ThreadSafeQueue& queue_;
