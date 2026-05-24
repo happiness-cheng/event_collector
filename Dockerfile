@@ -59,7 +59,7 @@ RUN ldconfig
 WORKDIR /app
 EXPOSE 8080 9090
 
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 USER appuser
 
 CMD ["./server"]
