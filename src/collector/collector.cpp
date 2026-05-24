@@ -10,6 +10,12 @@ Collector::Collector(boost::asio::io_context& io, uint16_t port, ThreadSafeQueue
 void Collector::start() {
     acceptor_.async_accept([this](boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
         if (!ec) {
+            if (Session::active_connections() >= Session::MAX_CONNECTIONS) {
+                spdlog::warn("Max connections ({}) exceeded, rejecting", Session::MAX_CONNECTIONS);
+                sock.close();
+                start();
+                return;
+            }
             auto remote = sock.remote_endpoint();
             spdlog::info("[connect] {}:{}", remote.address().to_string(), remote.port());
             std::make_shared<Session>(std::move(sock), queue_, metrics_)->start();
@@ -22,12 +28,7 @@ void Collector::start() {
 
 Session::Session(boost::asio::ip::tcp::socket sock, ThreadSafeQueue& q, Metrics& m)
     : socket_(std::move(sock)), timer_(socket_.get_executor()), queue_(q), metrics_(m) {
-    int count = active_count_.fetch_add(1) + 1;
-    if (count > static_cast<int>(MAX_CONNECTIONS)) {
-        spdlog::warn("Max connections ({}) exceeded", MAX_CONNECTIONS);
-        socket_.close();
-        active_count_.fetch_sub(1);  // 修复：超限后回滚计数
-    }
+    active_count_.fetch_add(1);
 }
 
 void Session::start() {
