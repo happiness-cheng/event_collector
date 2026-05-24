@@ -1,5 +1,7 @@
 # Event Collector
 
+[![CI](https://github.com/happiness-cheng/event_collector/actions/workflows/ci.yml/badge.svg)](https://github.com/happiness-cheng/event_collector/actions/workflows/ci.yml)
+
 **简体中文** | [English](./README_en.md)
 
 > 单机峰值 **53,000+ QPS**，1 小时持续压测 **8277 万事件 0 丢包**，5000 线程极限压力未崩溃。已部署 Azure 云端并通过单机/多机全面压测。

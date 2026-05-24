@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake \
+            libboost-system-dev libboost-thread-dev \
+            libprotobuf-dev protobuf-compiler \
+            libspdlog-dev libfmt-dev \
+            libssl-dev liblz4-dev libzstd-dev
+
+      - name: Build librdkafka
+        run: |
+          git clone --depth 1 --branch v2.3.0 https://github.com/confluentinc/librdkafka.git /tmp/librdkafka
+          cd /tmp/librdkafka && ./configure --prefix=/usr/local && make -j$(nproc) && sudo make install
+
+      - name: Build hiredis
+        run: |
+          git clone --depth 1 --branch v1.3.0 https://github.com/redis/hiredis.git /tmp/hiredis
+          cd /tmp/hiredis && make -j$(nproc) && sudo make install
+
+      - name: Build redis-plus-plus
+        run: |
+          git clone --depth 1 --branch 1.3.12 https://github.com/sewenew/redis-plus-plus.git /tmp/redis-plus-plus
+          cd /tmp/redis-plus-plus && mkdir build && cd build
+          cmake .. -DREDIS_PLUS_PLUS_CXX_STANDARD=17 -DREDIS_PLUS_PLUS_BUILD_TEST=OFF
+          make -j$(nproc) && sudo make install
+
+      - name: Build clickhouse-cpp
+        run: |
+          git clone --depth 1 --branch v2.5.1 https://github.com/ClickHouse/clickhouse-cpp.git /tmp/ch
+          cd /tmp/ch && mkdir build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc) && sudo make install
+          sudo cp /tmp/ch/contrib/cityhash/cityhash/city.h /usr/local/include/
+          sudo cp /tmp/ch/b/contrib/cityhash/cityhash/libcityhash.a /usr/local/lib/
+          sudo cp -r /tmp/ch/contrib/absl/absl /usr/local/include/
+          sudo cp /tmp/ch/b/contrib/absl/absl/libabsl_int128.a /usr/local/lib/
+
+      - name: Regenerate protobuf
+        run: |
+          protoc --cpp_out=include --proto_path=proto proto/event.proto
+          cp include/event.pb.cc src/proto/event.pb.cc
+
+      - name: Build project
+        run: |
+          mkdir build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+
+      - name: Run unit tests
+        run: |
+          cd build
+          ./tests/test_queue
+
+      - name: Build Docker image
+        run: |
+          docker build -t event-collector:test .
