@@ -28,8 +28,10 @@ Processor::Processor(ThreadSafeQueue& q, Metrics& m) : queue_(q), metrics_(m) {
             if (!producer_) {
                 spdlog::warn("Kafka producer init failed: {}", errstr);
             } else {
-                kafka_topic_ = rd_kafka_topic_new(producer_, "event_stream", nullptr);
-                spdlog::info("Kafka enabled, bootstrap={} topic=event_stream", kafka_bootstrap);
+                const char* kafka_topic_name = std::getenv("EVENT_COLLECTOR_KAFKA_TOPIC");
+                std::string topic_name = (kafka_topic_name && kafka_topic_name[0]) ? kafka_topic_name : "event_stream";
+                kafka_topic_ = rd_kafka_topic_new(producer_, topic_name.c_str(), nullptr);
+                spdlog::info("Kafka enabled, bootstrap={} topic={}", kafka_bootstrap, topic_name);
             }
         }
     } else {
@@ -121,15 +123,20 @@ bool Processor::validate(const event::Event& evt) {
 
 void Processor::produce_to_kafka(const std::string& key, const std::string& data) {
     if (!producer_ || !kafka_topic_) return;
-    int err = rd_kafka_produce(
-        kafka_topic_, RD_KAFKA_PARTITION_UA, RD_KAFKA_MSG_F_COPY,
-        (void*)data.data(), data.size(),
-        key.data(), key.size(), nullptr);
-    if (err != 0) {
-        metrics_.total_kafka_fail.fetch_add(1);
-    } else {
-        metrics_.total_kafka_ok.fetch_add(1);
+    for (int retry = 0; retry < 3; ++retry) {
+        int err = rd_kafka_produce(
+            kafka_topic_, RD_KAFKA_PARTITION_UA, RD_KAFKA_MSG_F_COPY,
+            (void*)data.data(), data.size(),
+            key.data(), key.size(), nullptr);
+        if (err == 0) {
+            metrics_.total_kafka_ok.fetch_add(1);
+            return;
+        }
+        if (retry < 2) {
+            rd_kafka_poll(producer_, 100);
+        }
     }
+    metrics_.total_kafka_fail.fetch_add(1);
 }
 
 void Processor::worker() {
