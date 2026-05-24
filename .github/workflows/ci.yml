@@ -63,8 +63,7 @@ jobs:
 
       - name: Run unit tests
         run: |
-          cd build
-          ./tests/test_queue
+          g++ -std=c++17 -pthread -Iinclude -o tests/test_queue tests/test_queue.cpp && ./tests/test_queue
 
       - name: Build Docker image
         run: |
