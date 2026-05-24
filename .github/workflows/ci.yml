@@ -67,4 +67,4 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t event-collector:test .
+          docker build --no-cache -t event-collector:test .

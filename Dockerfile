@@ -37,9 +37,11 @@ RUN git clone --depth 1 --branch v2.5.1 https://github.com/ClickHouse/clickhouse
 
 COPY . /src
 RUN protoc --cpp_out=/src/include --proto_path=/src/proto /src/proto/event.proto \
-    && cp /src/include/event.pb.cc /src/src/proto/event.pb.cc
-WORKDIR /src/build
-RUN cmake .. -DCMAKE_BUILD_TYPE=Release && make -j2
+    && cp /src/include/event.pb.cc /src/src/proto/event.pb.cc \
+    && rm -rf /src/build && mkdir /src/build \
+    && cd /src/build \
+    && cmake .. -DCMAKE_BUILD_TYPE=Release \
+    && make -j2
 
 FROM ubuntu:22.04 AS runtime
 
