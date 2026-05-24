@@ -29,6 +29,7 @@ void Collector::start() {
 Session::Session(boost::asio::ip::tcp::socket sock, ThreadSafeQueue& q, Metrics& m)
     : socket_(std::move(sock)), timer_(socket_.get_executor()), queue_(q), metrics_(m) {
     active_count_.fetch_add(1);
+    socket_.set_option(boost::asio::ip::tcp::no_delay(true));
 }
 
 void Session::start() {

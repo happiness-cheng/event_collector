@@ -24,9 +24,12 @@ Storage::Storage(Metrics& m) : metrics_(m) {
     client_ = std::make_unique<clickhouse::Client>(opts);
     spdlog::info("Storage initialized (batch_size={}, host={}:{})",
         BATCH_SIZE, opts.host, opts.port);
+    flush_thread_ = std::thread(&Storage::periodic_flush, this);
 }
 
 Storage::~Storage() {
+    running_ = false;
+    if (flush_thread_.joinable()) flush_thread_.join();
     flush_and_stop();
 }
 
@@ -50,6 +53,19 @@ void Storage::flush_and_stop() {
         batch.swap(buffer_);
     }
     do_flush(batch);
+}
+
+void Storage::periodic_flush() {
+    while (running_) {
+        std::this_thread::sleep_for(std::chrono::seconds(FLUSH_INTERVAL_SECS));
+        std::vector<std::string> batch;
+        {
+            std::lock_guard<std::mutex> lock(buffer_mutex_);
+            if (buffer_.empty()) continue;
+            batch.swap(buffer_);
+        }
+        do_flush(batch);
+    }
 }
 
 void Storage::do_flush(std::vector<std::string>& batch) {
