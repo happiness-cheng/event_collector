@@ -40,7 +40,16 @@ int main() {
         collector.start();
 
         Processor processor(queue, metrics);
-        processor.start(4);
+        size_t worker_count = 4;
+        const char* worker_str = std::getenv("EVENT_COLLECTOR_WORKERS");
+        if (worker_str) {
+            try {
+                worker_count = static_cast<size_t>(std::max(1, std::stoi(worker_str)));
+            } catch (const std::exception& e) {
+                spdlog::warn("invalid EVENT_COLLECTOR_WORKERS '{}', using default 4: {}", worker_str, e.what());
+            }
+        }
+        processor.start(worker_count);
 
         Monitor monitor(io_context, monitor_port, metrics);
         monitor.start();
@@ -57,7 +66,7 @@ int main() {
             io_threads.emplace_back([&io_context]() { io_context.run(); });
         }
 
-        spdlog::info("server ready: collector={} prometheus={}", collector_port, monitor_port);
+        spdlog::info("server ready: collector={} prometheus={} workers={}", collector_port, monitor_port, worker_count);
         for (auto& t : io_threads) t.join();
         processor.stop();
         return 0;
