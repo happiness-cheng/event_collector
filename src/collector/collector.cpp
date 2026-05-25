@@ -16,7 +16,13 @@ void Collector::start() {
                 start();
                 return;
             }
-            auto remote = sock.remote_endpoint();
+            boost::system::error_code ep_ec;
+            auto remote = sock.remote_endpoint(ep_ec);
+            if (ep_ec) {
+                spdlog::warn("[accept_fail] remote_endpoint: {}", ep_ec.message());
+                start();
+                return;
+            }
             spdlog::info("[connect] {}:{}", remote.address().to_string(), remote.port());
             std::make_shared<Session>(std::move(sock), queue_, metrics_)->start();
         } else {
@@ -36,7 +42,8 @@ void Collector::stop() {
 Session::Session(boost::asio::ip::tcp::socket sock, ThreadSafeQueue& q, Metrics& m)
     : socket_(std::move(sock)), timer_(socket_.get_executor()), queue_(q), metrics_(m) {
     active_count_.fetch_add(1);
-    socket_.set_option(boost::asio::ip::tcp::no_delay(true));
+    boost::system::error_code opt_ec;
+    socket_.set_option(boost::asio::ip::tcp::no_delay(true), opt_ec);
 }
 
 void Session::start() {
