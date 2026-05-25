@@ -17,9 +17,16 @@ fail = 0
 latencies = []
 lock = threading.Lock()
 
+_counter = 0
+_counter_lock = threading.Lock()
+
 def make_event():
+    global _counter
+    with _counter_lock:
+        _counter += 1
+        eid = _counter
     e = event_pb2.Event()
-    e.event_id = str(random.randint(1, 999999))
+    e.event_id = f"{time.time_ns()}_{eid}_{random.randint(1, 999999)}"
     e.user_id = f"user_{random.randint(1, 100)}"
     e.platform = random.choice(["ios", "android", "web"])
     e.event_type = random.choice(["click", "view", "scroll", "swipe", "longpress"])
