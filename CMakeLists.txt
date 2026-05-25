@@ -8,6 +8,7 @@ find_package(Boost REQUIRED COMPONENTS system thread)
 find_package(Protobuf REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(Threads REQUIRED)
+find_package(OpenSSL REQUIRED)
 
 find_path(CLICKHOUSE_CPP_INCLUDE_DIR clickhouse/client.h
     PATHS /usr/local/include /usr/include
@@ -85,6 +86,7 @@ target_link_libraries(server PRIVATE
     ${RDKAFKA_LIB}
     Boost::system
     Boost::thread
+    OpenSSL::Crypto
     spdlog::spdlog
     Threads::Threads
 )
