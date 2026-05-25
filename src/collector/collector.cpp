@@ -9,24 +9,28 @@ Collector::Collector(boost::asio::io_context& io, uint16_t port, ThreadSafeQueue
 
 void Collector::start() {
     acceptor_.async_accept([this](boost::system::error_code ec, boost::asio::ip::tcp::socket sock) {
-        if (!ec) {
-            if (Session::active_connections() >= Session::MAX_CONNECTIONS) {
-                spdlog::warn("Max connections ({}) exceeded, rejecting", Session::MAX_CONNECTIONS);
-                sock.close();
-                start();
-                return;
+        try {
+            if (!ec) {
+                if (Session::active_connections() >= Session::MAX_CONNECTIONS) {
+                    spdlog::warn("Max connections ({}) exceeded, rejecting", Session::MAX_CONNECTIONS);
+                    sock.close();
+                    start();
+                    return;
+                }
+                boost::system::error_code ep_ec;
+                auto remote = sock.remote_endpoint(ep_ec);
+                if (ep_ec) {
+                    spdlog::warn("[accept_fail] remote_endpoint: {}", ep_ec.message());
+                    start();
+                    return;
+                }
+                spdlog::info("[connect] {}:{}", remote.address().to_string(), remote.port());
+                std::make_shared<Session>(std::move(sock), queue_, metrics_)->start();
+            } else {
+                spdlog::warn("[accept_fail] {}", ec.message());
             }
-            boost::system::error_code ep_ec;
-            auto remote = sock.remote_endpoint(ep_ec);
-            if (ep_ec) {
-                spdlog::warn("[accept_fail] remote_endpoint: {}", ep_ec.message());
-                start();
-                return;
-            }
-            spdlog::info("[connect] {}:{}", remote.address().to_string(), remote.port());
-            std::make_shared<Session>(std::move(sock), queue_, metrics_)->start();
-        } else {
-            spdlog::warn("[accept_fail] {}", ec.message());
+        } catch (const std::exception& e) {
+            spdlog::warn("[accept_exception] {}", e.what());
         }
         start();
     });
@@ -104,6 +108,7 @@ void Session::start_timeout() {
 
 void Session::on_timeout() {
     spdlog::warn("[timeout] closing idle connection");
-    socket_.close();
+    boost::system::error_code ec;
+    socket_.close(ec);
     active_count_.fetch_sub(1);
 }
