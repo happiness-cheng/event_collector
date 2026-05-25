@@ -3,7 +3,6 @@
 #include "storage.h"
 #include "metrics.h"
 #include <spdlog/spdlog.h>
-#include <openssl/hmac.h>
 #include <chrono>
 #include <atomic>
 #include <memory>
@@ -11,12 +10,6 @@
 #include <ctime>
 
 Processor::Processor(ThreadSafeQueue& q, Metrics& m) : queue_(q), metrics_(m) {
-    const char* hmac_env = std::getenv("ENGINE_HMAC_KEY");
-    if (hmac_env && hmac_env[0] != '\0') {
-        hmac_key_ = hmac_env;
-        spdlog::info("HMAC signing enabled for Kafka events");
-    }
-
     const char* kafka_bootstrap = std::getenv("EVENT_COLLECTOR_KAFKA_BOOTSTRAP");
     if (kafka_bootstrap && kafka_bootstrap[0] != '\0') {
         rd_kafka_conf_t* conf = rd_kafka_conf_new();
@@ -100,14 +93,7 @@ void Processor::stop() {
             metrics_.total_parsed.fetch_add(1);
             if (validate(evt)) {
                 metrics_.total_valid.fetch_add(1);
-                if (!hmac_key_.empty()) {
-                    sign_event(evt);
-                    std::string signed_data;
-                    evt.SerializeToString(&signed_data);
-                    produce_to_kafka(evt.user_id(), signed_data);
-                } else {
-                    produce_to_kafka(evt.user_id(), data);
-                }
+                produce_to_kafka(evt.user_id(), data);
                 if (storage_) storage_->save(data);
             } else {
                 metrics_.total_invalid.fetch_add(1);
@@ -153,21 +139,6 @@ void Processor::produce_to_kafka(const std::string& key, const std::string& data
     metrics_.total_kafka_fail.fetch_add(1);
 }
 
-// HMAC-SHA256 签名：与 event_stream_engine 的 QualityPipeline::sign() 一致
-// data = event_id + user_id + event_type + to_string(ts) + payload
-// 签名结果追加到 payload 末尾（32 字节）
-std::string Processor::sign_event(event::Event& evt) {
-    if (hmac_key_.empty()) return "";
-    std::string data = evt.event_id() + evt.user_id() + evt.event_type()
-                     + std::to_string(evt.ts()) + evt.payload();
-    unsigned char result[32]; unsigned int len = 0;
-    HMAC(EVP_sha256(), hmac_key_.data(), (int)hmac_key_.size(),
-         (const unsigned char*)data.data(), (int)data.size(), result, &len);
-    std::string signature((char*)result, 32);
-    evt.set_payload(evt.payload() + signature);
-    return signature;
-}
-
 void Processor::worker() {
     while (running_) {
         auto data = queue_.try_pop_for(std::chrono::milliseconds(500));
@@ -197,15 +168,7 @@ void Processor::worker() {
             continue;
         }
 
-        // HMAC 签名（与 event_stream_engine 的 QualityPipeline 对齐）
-        if (!hmac_key_.empty()) {
-            sign_event(evt);
-            std::string signed_data;
-            evt.SerializeToString(&signed_data);
-            produce_to_kafka(evt.user_id(), signed_data);
-        } else {
-            produce_to_kafka(evt.user_id(), *data);
-        }
+        produce_to_kafka(evt.user_id(), *data);
 
         if (storage_) {
             storage_->save(*data);

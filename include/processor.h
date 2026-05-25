@@ -19,7 +19,6 @@ public:
 
 private:
     static bool validate(const event::Event& evt);
-    std::string sign_event(event::Event& evt);
     void produce_to_kafka(const std::string& key, const std::string& data);
     void worker();
 
@@ -31,5 +30,4 @@ private:
     rd_kafka_topic_t* kafka_topic_ = nullptr;
     std::unique_ptr<Storage> storage_;
     std::unique_ptr<RateLimiter> rate_limiter_;
-    std::string hmac_key_;
 };
