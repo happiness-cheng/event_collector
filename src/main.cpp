@@ -61,12 +61,21 @@ int main() {
             work_guard.reset();
         });
 
+        int io_thread_count = 2;
+        const char* io_str = std::getenv("EVENT_COLLECTOR_IO_THREADS");
+        if (io_str) {
+            try {
+                io_thread_count = std::max(1, std::stoi(io_str));
+            } catch (const std::exception& e) {
+                spdlog::warn("invalid EVENT_COLLECTOR_IO_THREADS '{}', using default 2: {}", io_str, e.what());
+            }
+        }
         std::vector<std::thread> io_threads;
-        for (int i = 0; i < 2; ++i) {
+        for (int i = 0; i < io_thread_count; ++i) {
             io_threads.emplace_back([&io_context]() { io_context.run(); });
         }
 
-        spdlog::info("server ready: collector={} prometheus={} workers={}", collector_port, monitor_port, worker_count);
+        spdlog::info("server ready: collector={} prometheus={} workers={} io_threads={}", collector_port, monitor_port, worker_count, io_thread_count);
         for (auto& t : io_threads) t.join();
         processor.stop();
         return 0;
