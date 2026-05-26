@@ -24,6 +24,12 @@ Processor::Processor(ThreadSafeQueue& q, Metrics& m) : queue_(q), metrics_(m) {
         } else if (rd_kafka_conf_set(conf, "compression.codec", "snappy", errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
             spdlog::warn("Kafka config error (compression): {}", errstr);
             rd_kafka_conf_destroy(conf);
+        } else if (rd_kafka_conf_set(conf, "linger.ms", "5", errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+            spdlog::warn("Kafka config error (linger.ms): {}", errstr);
+            rd_kafka_conf_destroy(conf);
+        } else if (rd_kafka_conf_set(conf, "batch.num.messages", "1000", errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
+            spdlog::warn("Kafka config error (batch.num.messages): {}", errstr);
+            rd_kafka_conf_destroy(conf);
         } else {
             producer_ = rd_kafka_new(RD_KAFKA_PRODUCER, conf, errstr, sizeof(errstr));
             if (!producer_) {
@@ -78,6 +84,15 @@ Processor::~Processor() {
 void Processor::start(size_t thread_count) {
     for (size_t i = 0; i < thread_count; ++i) {
         threads_.emplace_back(&Processor::worker, this);
+    }
+    // Kafka poll 线程：独立刷新 producer 缓冲 + 处理 delivery report
+    if (producer_) {
+        threads_.emplace_back([this]() {
+            while (running_) {
+                rd_kafka_poll(producer_, 10);  // 等最多 10ms，处理所有 pending delivery report
+            }
+        });
+        spdlog::info("Kafka poll thread started");
     }
     spdlog::info("Processor started with {} worker threads", thread_count);
 }
@@ -134,17 +149,20 @@ static void dr_msg_cb(rd_kafka_t*, const rd_kafka_message_t* rkmsg, void* opaque
 
 void Processor::produce_to_kafka(const std::string& key, const std::string& data) {
     if (!producer_ || !kafka_topic_) return;
-    for (int retry = 0; retry < 3; ++retry) {
-        int err = rd_kafka_produce(
+    int err = rd_kafka_produce(
+        kafka_topic_, RD_KAFKA_PARTITION_UA, RD_KAFKA_MSG_F_COPY,
+        (void*)data.data(), data.size(),
+        key.data(), key.size(), &metrics_);
+    if (err != 0) {
+        // 内部缓冲满，触发一次 poll 清理后重试
+        rd_kafka_poll(producer_, 0);
+        err = rd_kafka_produce(
             kafka_topic_, RD_KAFKA_PARTITION_UA, RD_KAFKA_MSG_F_COPY,
             (void*)data.data(), data.size(),
             key.data(), key.size(), &metrics_);
-        if (err == 0) return;  // 入队成功，等 delivery report 回调计数
-        if (retry < 2) {
-            rd_kafka_poll(producer_, 100);
-        }
+        if (err != 0) metrics_.total_kafka_fail.fetch_add(1);
     }
-    metrics_.total_kafka_fail.fetch_add(1);  // 入队失败，直接计数
+    // 入队成功：等后台 poll 线程触发 delivery report 回调计数
 }
 
 void Processor::worker() {
@@ -177,7 +195,6 @@ void Processor::worker() {
         }
 
         produce_to_kafka(evt.user_id(), *data);
-        if (producer_) rd_kafka_poll(producer_, 0);  // 触发 delivery report + 刷新缓冲
 
         if (storage_) {
             storage_->save(*data);
