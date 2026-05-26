@@ -13,6 +13,7 @@ Processor::Processor(ThreadSafeQueue& q, Metrics& m) : queue_(q), metrics_(m) {
     const char* kafka_bootstrap = std::getenv("EVENT_COLLECTOR_KAFKA_BOOTSTRAP");
     if (kafka_bootstrap && kafka_bootstrap[0] != '\0') {
         rd_kafka_conf_t* conf = rd_kafka_conf_new();
+        rd_kafka_conf_set_dr_msg_cb(conf, dr_msg_cb);
         char errstr[512] = {0};
         if (rd_kafka_conf_set(conf, "bootstrap.servers", kafka_bootstrap, errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
             spdlog::warn("Kafka config error (bootstrap): {}", errstr);
@@ -121,22 +122,29 @@ bool Processor::validate(const event::Event& evt) {
     return true;
 }
 
+// Delivery report callback：消息真正到达 broker 后才计数
+static void dr_msg_cb(rd_kafka_t*, const rd_kafka_message_t* rkmsg, void* opaque) {
+    auto* m = static_cast<Metrics*>(opaque);
+    if (rkmsg->err == RD_KAFKA_RESP_ERR_NO_ERROR) {
+        m->total_kafka_ok.fetch_add(1);
+    } else {
+        m->total_kafka_fail.fetch_add(1);
+    }
+}
+
 void Processor::produce_to_kafka(const std::string& key, const std::string& data) {
     if (!producer_ || !kafka_topic_) return;
     for (int retry = 0; retry < 3; ++retry) {
         int err = rd_kafka_produce(
             kafka_topic_, RD_KAFKA_PARTITION_UA, RD_KAFKA_MSG_F_COPY,
             (void*)data.data(), data.size(),
-            key.data(), key.size(), nullptr);
-        if (err == 0) {
-            metrics_.total_kafka_ok.fetch_add(1);
-            return;
-        }
+            key.data(), key.size(), &metrics_);
+        if (err == 0) return;  // 入队成功，等 delivery report 回调计数
         if (retry < 2) {
             rd_kafka_poll(producer_, 100);
         }
     }
-    metrics_.total_kafka_fail.fetch_add(1);
+    metrics_.total_kafka_fail.fetch_add(1);  // 入队失败，直接计数
 }
 
 void Processor::worker() {
@@ -169,6 +177,7 @@ void Processor::worker() {
         }
 
         produce_to_kafka(evt.user_id(), *data);
+        if (producer_) rd_kafka_poll(producer_, 0);  // 触发 delivery report + 刷新缓冲
 
         if (storage_) {
             storage_->save(*data);
