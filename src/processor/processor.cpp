@@ -9,6 +9,9 @@
 #include <cstdlib>
 #include <ctime>
 
+// 前向声明：delivery report 回调（定义在文件末尾）
+static void dr_msg_cb(rd_kafka_t*, const rd_kafka_message_t*, void*);
+
 Processor::Processor(ThreadSafeQueue& q, Metrics& m) : queue_(q), metrics_(m) {
     const char* kafka_bootstrap = std::getenv("EVENT_COLLECTOR_KAFKA_BOOTSTRAP");
     if (kafka_bootstrap && kafka_bootstrap[0] != '\0') {
