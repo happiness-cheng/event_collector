@@ -17,11 +17,23 @@ C++17, Boost.Asio, Protobuf, Kafka, Redis, ClickHouse, Prometheus
 
 ## Key Metrics
 
-- **Peak QPS**: 18,708 (single component) / 13,707 (full stack)
-- **P50 Latency**: 2.4-3.0ms
-- **5-min stability**: 2M events, 11MB RSS, zero leaks
+### Production Data (Live)
 
-See [README_zh.md](./README_zh.md) for full documentation.
+- **Total Events Processed**: 144M+
+- **Peak QPS**: 480,000
+- **Parse Failure Rate**: 0%
+- **Kafka Write Success Rate**: 99.99%
+- **Continuous Uptime**: 8 hours, zero container crashes
+
+### Benchmark Data (Test Environment)
+
+- **Peak QPS (single-node)**: 53,139 (100 threads)
+- **Peak QPS (multi-node)**: 24,859 (50 threads)
+- **P50 Latency**: 0.01ms (multi-node)
+- **C epoll Client Peak**: 318,000 QPS (500 connections, 0% loss)
+- **1-hour Stability**: 82.77M events, 0% loss
+
+See [README.md](./README.md) for full documentation.
 
 ## License
 
