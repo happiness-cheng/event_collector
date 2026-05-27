@@ -17,8 +17,10 @@ public:
     void start(size_t thread_count = 4);
     void stop();
 
-private:
+    // 验证事件字段合法性（暴露为 public 以支持单元测试）
     static bool validate(const event::Event& evt);
+
+private:
     void produce_to_kafka(const std::string& key, const std::string& data);
     void worker();
 
