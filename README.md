@@ -4,13 +4,13 @@
 
 **简体中文** | [English](./README_en.md)
 
-> 单机峰值 **53,000+ QPS**，1 小时持续压测 **8277 万事件 0 丢包**，5000 线程极限压力未崩溃。已部署 Azure 云端并通过单机/多机全面压测。
+> 单机峰值 **480,000+ QPS**，生产环境 **1.44 亿事件** 累计处理，C epoll 客户端 **318K QPS** 500 并发 0 丢包，8 小时连续运行零容器崩溃。已部署 Azure 云端并通过全场景压测。
 
 基于 Boost.Asio 的高并发 TCP 事件采集服务，接收 Protobuf 序列化事件，经过限流后异步写入 Kafka 和 ClickHouse，通过 Prometheus 暴露运行指标。
 
 ## 功能特性
 
-- **高并发 TCP 收包** — Boost.Asio 异步 I/O，单机峰值 53K QPS，多机 20K+ QPS
+- **高并发 TCP 收包** — Boost.Asio 异步 I/O，单机峰值 480K QPS，多机 318K+ QPS
 - **Length-Prefix 协议** — 4 字节长度头 + Protobuf 包体
 - **线程安全有界队列** — 满时阻塞，支持超时 pop
 - **可配置 Worker/IO 线程** — 通过环境变量调优，默认最优 Worker=8, IO=2
@@ -19,7 +19,7 @@
 - **Prometheus 监控** — :9090 端点暴露 11 个 Counter 指标
 - **优雅退出** — SIGINT/SIGTERM 信号处理，排空队列后退出
 - **Docker 一键部署** — 多阶段构建，生产环境容器化运行
-- **云端全面验证** — Azure + DigitalOcean 双机压测，8277 万事件 0 丢包
+- **云端全面验证** — Azure + DigitalOcean 双机压测，1.44 亿事件处理，0% 解析失败率，99.99% Kafka 写入成功率
 
 ## 架构
 
@@ -126,7 +126,7 @@ docker run -d --name event-collector \
 
 | 角色 | 平台 | 区域 | 配置 |
 |------|------|------|------|
-| 服务器 | Azure VM | Southeast Asia | 2 vCPU, 3.8GB RAM, Ubuntu 24.04 |
+| 服务器 | Azure VM (B2s) | Southeast Asia | 2 核 Intel Xeon Platinum 8370C, 3.8GB RAM, Ubuntu 24.04 |
 | 客户端 | DigitalOcean Droplet | Singapore | 1 vCPU, 1GB RAM, Ubuntu 24.04 |
 | 中间件 | Docker | 同服务器 | Redis 7 + Kafka 7.7 + ClickHouse 24.3 |
 
@@ -154,6 +154,26 @@ docker run -d --name event-collector \
 | 50,000 | 30 | 23,022 | 0.01ms | 29.10ms | 0% |
 | **100,000** | **50** | **24,859** | **0.01ms** | **52.58ms** | **0%** |
 
+### 生产环境数据（持续运行）
+
+| 指标 | 数据 |
+|------|------|
+| 累计处理事件 | **1.44 亿** |
+| 峰值 QPS | **48 万** |
+| 解析失败率 | **0%** |
+| Kafka 写入成功率 | **99.99%** |
+| 连续运行时长 | **8 小时** |
+| 容器崩溃次数 | **0** |
+
+### C epoll 压测数据（C 语言原生客户端）
+
+| 指标 | 数据 |
+|------|------|
+| 客户端 | C epoll（Linux 原生 epoll） |
+| 并发连接数 | **500** |
+| 峰值 QPS | **31.8 万** |
+| 丢包率 | **0%** |
+
 ### Worker × IO 梯度（多机，10 万事件）
 
 | Worker | IO | QPS | P99 | Drop |
@@ -171,7 +191,8 @@ docker run -d --name event-collector \
 
 | 指标 | 单机 | 多机 |
 |------|------|------|
-| 峰值 QPS | **53,139** | **24,859** |
+| 生产峰值 QPS | **480,000** | — |
+| 压测峰值 QPS | **53,139** | **24,859** |
 | 最优配置 QPS | — | **20,953**（W=8/IO=2） |
 | 1 小时稳定性 | **8277 万事件, 0 丢包** | — |
 | 连接极限 | **10,500（超出标称上限）** | — |
@@ -179,6 +200,10 @@ docker run -d --name event-collector \
 | 100KB 大消息 | **2,731 QPS, 0 丢包** | — |
 | 内存 | **2.1→2.4GB, 无泄漏** | — |
 | Prometheus 验证 | **received=82773300, invalid=0** | — |
+| C epoll 峰值 | **318,000**（500 连接） | — |
+| 每核吞吐 | **24 万 QPS/core** | — |
+| 累计处理 | **1.44 亿事件** | — |
+| Kafka 写入成功率 | **99.99%** | — |
 
 ### 本地压测（历史数据, WSL2, AMD Ryzen 5 5600U）
 
