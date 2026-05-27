@@ -70,12 +70,12 @@ void Session::do_read_header() {
             } else {
                 spdlog::warn("[invalid_len] len={}", len);
                 self->socket_.close();
-                self->active_count_.fetch_sub(1);
+                self->cleanup();
                 return;
             }
         } else {
             spdlog::debug("[conn_close] {}", ec.message());
-            self->active_count_.fetch_sub(1);
+            self->cleanup();
         }
     });
 }
@@ -93,7 +93,7 @@ void Session::do_read_body(std::size_t len) {
             self->do_read_header();
         } else {
             spdlog::debug("[conn_close] {}", ec.message());
-            self->active_count_.fetch_sub(1);
+            self->cleanup();
         }
     });
 }
@@ -110,5 +110,10 @@ void Session::on_timeout() {
     spdlog::warn("[timeout] closing idle connection");
     boost::system::error_code ec;
     socket_.close(ec);
+    cleanup();
+}
+
+void Session::cleanup() {
+    if (cleaned_up_.exchange(true)) return;  // CAS：已清理过则跳过
     active_count_.fetch_sub(1);
 }
