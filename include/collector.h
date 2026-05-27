@@ -29,6 +29,7 @@ private:
     void do_read_body(std::size_t body_length);
     void start_timeout();
     void on_timeout();
+    void cleanup();
     boost::asio::ip::tcp::socket socket_;
     boost::asio::steady_timer timer_;
     std::array<char, 4> header_;
@@ -37,4 +38,5 @@ private:
     Metrics& metrics_;
     static constexpr auto TIMEOUT_SECS = std::chrono::seconds(5);
     static std::atomic<int> active_count_;
+    std::atomic<bool> cleaned_up_{false};
 };
