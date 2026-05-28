@@ -53,6 +53,7 @@ jobs:
       - name: Regenerate protobuf
         run: |
           protoc --cpp_out=include --proto_path=proto proto/event.proto
+          mkdir -p src/proto
           cp include/event.pb.cc src/proto/event.pb.cc
 
       - name: Build project
