@@ -123,6 +123,20 @@ void Processor::stop() {
     }
 
     if (storage_) storage_->flush_and_stop();
+
+    // 优雅关闭：排空队列后，等 Kafka 内部缓冲真正 flush 出去再退，
+    // 避免最后一批事件只入了内部缓冲(produce返回0≠到达broker)就进程退出导致丢失
+    if (producer_) {
+        const int flush_ms = 10000;
+        auto remaining = rd_kafka_flush(producer_, flush_ms);
+        if (remaining != 0) {
+            spdlog::warn("Kafka flush timeout, {} messages still in buffer, forcing purge", remaining);
+            rd_kafka_purge(producer_, RD_KAFKA_PURGE_F_QUEUE);
+        } else {
+            spdlog::info("Kafka buffer flushed, all messages delivered before shutdown");
+        }
+    }
+
     spdlog::info("Processor stopped. Final: received={} parsed={} valid={} invalid={} rate_limited={}",
         metrics_.total_received.load(), metrics_.total_parsed.load(),
         metrics_.total_valid.load(), metrics_.total_invalid.load(),
