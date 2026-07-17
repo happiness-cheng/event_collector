@@ -28,8 +28,8 @@ static int tests_failed = 0;
 
 void test_push_pop() {
     ThreadSafeQueue q(10);
-    q.push("hello");
-    q.push("world");
+    q.try_push("hello");
+    q.try_push("world");
     std::string data;
     ASSERT_TRUE(q.try_pop(data));
     ASSERT_EQ(data, std::string("hello"));
@@ -42,8 +42,8 @@ void test_push_pop() {
 
 void test_capacity() {
     ThreadSafeQueue q(2);
-    q.push("a");
-    q.push("b");
+    q.try_push("a");
+    q.try_push("b");
     std::string data;
     ASSERT_TRUE(q.try_pop(data));
     ASSERT_EQ(data, std::string("a"));
@@ -68,7 +68,7 @@ void test_concurrent_push_pop() {
 
     std::thread producer([&q, N]() {
         for (int i = 0; i < N; i++) {
-            q.push("event_" + std::to_string(i));
+            q.try_push("event_" + std::to_string(i));
         }
     });
 
