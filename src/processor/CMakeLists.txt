@@ -33,6 +33,7 @@ target_link_libraries(rate_limiter PUBLIC
 
 add_library(processor STATIC
     processor.cpp
+    validation.cpp
     ${CMAKE_SOURCE_DIR}/src/proto/event.pb.cc
 )
 

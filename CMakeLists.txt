@@ -88,3 +88,15 @@ target_link_libraries(server PRIVATE
     spdlog::spdlog
     Threads::Threads
 )
+
+# ---- 单元测试（可选，默认打开） ----
+option(BUILD_TESTS "Build unit tests" ON)
+if(BUILD_TESTS)
+    include(FetchContent)
+    FetchContent_Declare(googletest
+        URL https://github.com/google/googletest/archive/refs/tags/v1.15.2.zip
+    )
+    FetchContent_MakeAvailable(googletest)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
