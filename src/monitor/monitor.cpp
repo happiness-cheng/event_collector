@@ -21,7 +21,7 @@ void Monitor::do_accept() {
     });
 }
 
-void Monitor::handle_request(std::shared_ptr<boost::asio::ip::tcp::socket> sock) {
+void Monitor::handle_request(const std::shared_ptr<boost::asio::ip::tcp::socket>& sock) {
     auto buf = std::make_shared<std::array<char, 1024>>();
     sock->async_read_some(boost::asio::buffer(*buf),
         [this, sock, buf](boost::system::error_code ec, std::size_t) {

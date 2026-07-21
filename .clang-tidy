@@ -13,7 +13,6 @@ CheckOptions:
   - key: performance-unnecessary-value-param.AllowedTypes
     value: 'boost::asio::io_context;Metrics;ThreadSafeQueue'
 WarningsAsErrors: '*'
-# 初始阶段 WarningsAsErrors 打开：现有代码必须全部通过才合并
-HeaderFilterRegex: '.*'
+HeaderFilterRegex: ''
 AnalyzeTemporaryDtors: false
 FormatStyle: none

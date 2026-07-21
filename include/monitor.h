@@ -11,7 +11,7 @@ public:
 
 private:
     void do_accept();
-    void handle_request(std::shared_ptr<boost::asio::ip::tcp::socket> sock);
+    void handle_request(const std::shared_ptr<boost::asio::ip::tcp::socket>& sock);
 
     std::string build_prometheus_text();
     static std::string format_metric(const std::string& name,

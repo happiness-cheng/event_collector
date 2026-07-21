@@ -7,6 +7,7 @@
 #include <chrono>
 #include <atomic>
 #include <memory>
+#include <array>
 #include <cstdlib>
 #include <ctime>
 
@@ -18,26 +19,26 @@ Processor::Processor(ThreadSafeQueue& q, Metrics& m) : queue_(q), metrics_(m) {
     if (kafka_bootstrap && kafka_bootstrap[0] != '\0') {
         rd_kafka_conf_t* conf = rd_kafka_conf_new();
         rd_kafka_conf_set_dr_msg_cb(conf, dr_msg_cb);
-        char errstr[512] = {0};
-        if (rd_kafka_conf_set(conf, "bootstrap.servers", kafka_bootstrap, errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
-            spdlog::warn("Kafka config error (bootstrap): {}", errstr);
+        std::array<char, 512> errstr{};
+        if (rd_kafka_conf_set(conf, "bootstrap.servers", kafka_bootstrap, errstr.data(), errstr.size()) != RD_KAFKA_CONF_OK) {
+            spdlog::warn("Kafka config error (bootstrap): {}", errstr.data());
             rd_kafka_conf_destroy(conf);
-        } else if (rd_kafka_conf_set(conf, "acks", "1", errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
-            spdlog::warn("Kafka config error (acks): {}", errstr);
+        } else if (rd_kafka_conf_set(conf, "acks", "1", errstr.data(), errstr.size()) != RD_KAFKA_CONF_OK) {
+            spdlog::warn("Kafka config error (acks): {}", errstr.data());
             rd_kafka_conf_destroy(conf);
-        } else if (rd_kafka_conf_set(conf, "compression.codec", "snappy", errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
-            spdlog::warn("Kafka config error (compression): {}", errstr);
+        } else if (rd_kafka_conf_set(conf, "compression.codec", "snappy", errstr.data(), errstr.size()) != RD_KAFKA_CONF_OK) {
+            spdlog::warn("Kafka config error (compression): {}", errstr.data());
             rd_kafka_conf_destroy(conf);
-        } else if (rd_kafka_conf_set(conf, "linger.ms", "5", errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
-            spdlog::warn("Kafka config error (linger.ms): {}", errstr);
+        } else if (rd_kafka_conf_set(conf, "linger.ms", "5", errstr.data(), errstr.size()) != RD_KAFKA_CONF_OK) {
+            spdlog::warn("Kafka config error (linger.ms): {}", errstr.data());
             rd_kafka_conf_destroy(conf);
-        } else if (rd_kafka_conf_set(conf, "batch.num.messages", "1000", errstr, sizeof(errstr)) != RD_KAFKA_CONF_OK) {
-            spdlog::warn("Kafka config error (batch.num.messages): {}", errstr);
+        } else if (rd_kafka_conf_set(conf, "batch.num.messages", "1000", errstr.data(), errstr.size()) != RD_KAFKA_CONF_OK) {
+            spdlog::warn("Kafka config error (batch.num.messages): {}", errstr.data());
             rd_kafka_conf_destroy(conf);
         } else {
-            producer_ = rd_kafka_new(RD_KAFKA_PRODUCER, conf, errstr, sizeof(errstr));
+            producer_ = rd_kafka_new(RD_KAFKA_PRODUCER, conf, errstr.data(), errstr.size());
             if (!producer_) {
-                spdlog::warn("Kafka producer init failed: {}", errstr);
+                spdlog::warn("Kafka producer init failed: {}", errstr.data());
             } else {
                 const char* kafka_topic_name = std::getenv("EVENT_COLLECTOR_KAFKA_TOPIC");
                 std::string topic_name = (kafka_topic_name && kafka_topic_name[0]) ? kafka_topic_name : "event_stream";

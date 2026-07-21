@@ -71,6 +71,7 @@ int main() {
             }
         }
         std::vector<std::thread> io_threads;
+        io_threads.reserve(io_thread_count);
         for (int i = 0; i < io_thread_count; ++i) {
             io_threads.emplace_back([&io_context]() { io_context.run(); });
         }

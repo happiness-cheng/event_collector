@@ -8,7 +8,7 @@ class RateLimiter {
 public:
     RateLimiter(const std::string& host, int port, uint64_t limit_per_min);
     bool allow(const std::string& user_id);
-    uint64_t limit() const { return limit_per_min_; }
+    [[nodiscard]] uint64_t limit() const { return limit_per_min_; }
 
 private:
     std::unique_ptr<sw::redis::Redis> redis_;
