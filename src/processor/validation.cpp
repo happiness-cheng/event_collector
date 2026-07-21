@@ -9,6 +9,6 @@ bool validate_event(const event::Event& evt) {
     if (evt.ts() <= 0) return false;
     auto now = std::time(nullptr) * 1000;
     if (evt.ts() < now - 86400000LL * 30) return false;
-    if (evt.ts() > now + 86400000LL * 30) return false;
+    if (evt.ts() > now + 86400000LL * 1) return false;
     return true;
 }
