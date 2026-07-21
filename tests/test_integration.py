@@ -107,6 +107,12 @@ def main():
         print(f"FAIL: stored={got.get('event_stored_total')} expected=0")
         ok = False
 
+    # 检查没有死信文件
+    dead_letter = "dead_letter.log"
+    if os.path.exists(dead_letter):
+        print(f"FAIL: unexpected {dead_letter} found")
+        ok = False
+
     # 优雅退出
     proc.terminate()
     try:

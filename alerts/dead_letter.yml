@@ -1,0 +1,15 @@
+groups:
+  - name: event_collector
+    rules:
+      - alert: DeadLetterAccumulating
+        expr: event_store_dead_total > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Dead letter log 有新的失败事件"
+          description: >-
+            ClickHouse 批量写入失败且重试耗尽，
+            {{ $value }} 条事件已写入 dead_letter.log。
+            请检查 ClickHouse 连接状态和 events 表 schema。
+          runbook_url: "https://github.com/happiness-cheng/event_collector/wiki/Dead-Letter-Recovery"
