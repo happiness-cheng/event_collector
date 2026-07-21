@@ -1,0 +1,19 @@
+Checks: >
+  bugprone-*,
+  performance-*,
+  modernize-*,
+  -modernize-use-trailing-return-type,
+  -modernize-concat-nested-namespaces,
+  readability-make-member-function-const,
+  readability-delete-null-pointer,
+  readability-else-after-return,
+  readability-redundant-*,
+  clang-analyzer-*,
+CheckOptions:
+  - key: performance-unnecessary-value-param.AllowedTypes
+    value: 'boost::asio::io_context;Metrics;ThreadSafeQueue'
+WarningsAsErrors: '*'
+# 初始阶段 WarningsAsErrors 打开：现有代码必须全部通过才合并
+HeaderFilterRegex: '.*'
+AnalyzeTemporaryDtors: false
+FormatStyle: none
