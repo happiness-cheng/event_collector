@@ -1,78 +1,50 @@
+#include <gtest/gtest.h>
 #include "queue.h"
-#include <iostream>
 #include <thread>
-#include <vector>
 #include <atomic>
 #include <chrono>
+#include <string>
 
-static int tests_passed = 0;
-static int tests_failed = 0;
-
-#define ASSERT_TRUE(cond) \
-    do { \
-        if (!(cond)) { \
-            std::cerr << "  FAIL: " #cond " at " << __FILE__ << ":" << __LINE__ << std::endl; \
-            tests_failed++; \
-            return; \
-        } \
-    } while(0)
-
-#define ASSERT_EQ(a, b) \
-    do { \
-        if ((a) != (b)) { \
-            std::cerr << "  FAIL: " #a " == " #b " (" << (a) << " vs " << (b) << ") at " << __FILE__ << ":" << __LINE__ << std::endl; \
-            tests_failed++; \
-            return; \
-        } \
-    } while(0)
-
-void test_push_pop() {
+TEST(ThreadSafeQueue, PushPop_OrderPreserved) {
     ThreadSafeQueue q(10);
-    q.try_push("hello");
-    q.try_push("world");
+    EXPECT_TRUE(q.try_push("hello"));
+    EXPECT_TRUE(q.try_push("world"));
     std::string data;
-    ASSERT_TRUE(q.try_pop(data));
-    ASSERT_EQ(data, std::string("hello"));
-    ASSERT_TRUE(q.try_pop(data));
-    ASSERT_EQ(data, std::string("world"));
-    ASSERT_TRUE(!q.try_pop(data));
-    tests_passed++;
-    std::cout << "  test_push_pop: PASS" << std::endl;
+    EXPECT_TRUE(q.try_pop(data));
+    EXPECT_EQ(data, "hello");
+    EXPECT_TRUE(q.try_pop(data));
+    EXPECT_EQ(data, "world");
+    EXPECT_FALSE(q.try_pop(data));
 }
 
-void test_capacity() {
+TEST(ThreadSafeQueue, Capacity_BlocksWhenFull) {
     ThreadSafeQueue q(2);
-    q.try_push("a");
-    q.try_push("b");
+    EXPECT_TRUE(q.try_push("a"));
+    EXPECT_TRUE(q.try_push("b"));
+    EXPECT_FALSE(q.try_push("c"));  // 满，应拒
     std::string data;
-    ASSERT_TRUE(q.try_pop(data));
-    ASSERT_EQ(data, std::string("a"));
-    ASSERT_TRUE(q.try_pop(data));
-    ASSERT_EQ(data, std::string("b"));
-    tests_passed++;
-    std::cout << "  test_capacity: PASS" << std::endl;
+    EXPECT_TRUE(q.try_pop(data));
+    EXPECT_EQ(data, "a");
 }
 
-void test_try_pop_for_timeout() {
+TEST(ThreadSafeQueue, TryPopFor_TimeoutReturnsNullopt) {
     ThreadSafeQueue q(10);
     auto result = q.try_pop_for(std::chrono::milliseconds(50));
-    ASSERT_TRUE(!result.has_value());
-    tests_passed++;
-    std::cout << "  test_try_pop_for_timeout: PASS" << std::endl;
+    EXPECT_FALSE(result.has_value());
 }
 
-void test_concurrent_push_pop() {
+TEST(ThreadSafeQueue, ConcurrentPushPop_AllReceived) {
     ThreadSafeQueue q(10000);
     const int N = 1000;
     std::atomic<int> received{0};
 
-    std::thread producer([&q, N]() {
+    std::thread producer([&]() {
         for (int i = 0; i < N; i++) {
             q.try_push("event_" + std::to_string(i));
         }
     });
 
-    std::thread consumer([&q, &received, N]() {
+    std::thread consumer([&]() {
         for (int i = 0; i < N; i++) {
             auto r = q.try_pop_for(std::chrono::seconds(5));
             ASSERT_TRUE(r.has_value());
@@ -82,17 +54,5 @@ void test_concurrent_push_pop() {
 
     producer.join();
     consumer.join();
-    ASSERT_EQ(received.load(), N);
-    tests_passed++;
-    std::cout << "  test_concurrent_push_pop: PASS (received=" << received.load() << ")" << std::endl;
-}
-
-int main() {
-    std::cout << "=== Queue Unit Tests ===" << std::endl;
-    test_push_pop();
-    test_capacity();
-    test_try_pop_for_timeout();
-    test_concurrent_push_pop();
-    std::cout << "=== " << tests_passed << " passed, " << tests_failed << " failed ===" << std::endl;
-    return tests_failed > 0 ? 1 : 0;
+    EXPECT_EQ(received.load(), N);
 }

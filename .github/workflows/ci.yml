@@ -67,6 +67,16 @@ jobs:
           cd build
           ctest --output-on-failure
 
+      - name: Install Python dependencies
+        run: pip install protobuf
+
+      - name: Generate Python protobuf
+        run: |
+          cd proto && protoc --python_out=../tests event.proto
+
+      - name: Run integration test
+        run: python tests/test_integration.py
+
       - name: Build Docker image
         run: |
           docker build --no-cache -t event-collector:test .
