@@ -124,7 +124,7 @@ void Storage::write_dead_letter(const std::vector<std::string>& batch) {
 
     static const std::string log_path = "dead_letter.log";
     struct stat st;
-    if (stat(log_path.c_str(), &st) == 0 && st.st_size > 100 * 1024 * 1024) {
+    if (stat(log_path.c_str(), &st) == 0 && st.st_size > 100LL * 1024 * 1024) {
         std::string rotated = log_path + "." + std::to_string(std::time(nullptr));
         std::rename(log_path.c_str(), rotated.c_str());
         spdlog::info("Rotated dead_letter.log -> {}", rotated);
