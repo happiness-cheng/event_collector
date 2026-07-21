@@ -24,7 +24,7 @@ def main():
     # 不设 EVENT_COLLECTOR_KAFKA_BOOTSTRAP / ENABLE_CLICKHOUSE / REDIS_ENABLE
     # → Kafka/ClickHouse/Redis 全部禁用
 
-    server_bin = os.path.join("build", "server")
+    server_bin = os.environ.get("EVENT_COLLECTOR_SERVER_BIN", os.path.join("build", "server"))
     proc = subprocess.Popen(
         [server_bin], env=env,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,

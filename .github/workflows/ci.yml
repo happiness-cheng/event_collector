@@ -77,6 +77,26 @@ jobs:
       - name: Run integration test
         run: python tests/test_integration.py
 
+      - name: Build with ASan
+        run: |
+          mkdir build-asan && cd build-asan
+          cmake .. -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS="-fsanitize=address -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address"
+          make -j$(nproc)
+
+      - name: Run ASan tests
+        env:
+          ASAN_OPTIONS: fast_unwind_on_malloc=0:detect_leaks=1
+        run: |
+          cd build-asan && ctest --output-on-failure
+
+      - name: Run integration test under ASan
+        env:
+          ASAN_OPTIONS: fast_unwind_on_malloc=0:detect_leaks=1
+          EVENT_COLLECTOR_SERVER_BIN: build-asan/server
+        run: python tests/test_integration.py
+
       - name: Build Docker image
         run: |
           docker build --no-cache -t event-collector:test .
